@@ -3,6 +3,7 @@ import { AppError } from './errors'
 import { failure } from './output'
 import { initDb } from './db'
 import { registerAccounts } from './accounts/commands'
+import { registerCategories } from './categories/commands'
 
 const program = new Command()
 
@@ -18,6 +19,7 @@ function resolveDbPath(): string | undefined {
 }
 
 registerAccounts(program)
+registerCategories(program)
 
 try {
   initDb(resolveDbPath())
