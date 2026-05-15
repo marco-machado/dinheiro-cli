@@ -3,11 +3,35 @@ import type { ImportRow } from '../types'
 
 const REQUIRED_HEADERS = ['Data', 'Categoria', 'Título', 'Valor']
 
+function parseCsvLine(line: string): string[] {
+  const result: string[] = []
+  let current = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"'
+        i++
+      } else {
+        inQuotes = !inQuotes
+      }
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current)
+      current = ''
+    } else {
+      current += ch
+    }
+  }
+  result.push(current)
+  return result
+}
+
 export function parseNubank(csvContent: string): ImportRow[] {
   const lines = csvContent.trim().split('\n').map(l => l.trim()).filter(Boolean)
   if (lines.length === 0) return []
 
-  const headers = lines[0].split(',').map(h => h.trim())
+  const headers = parseCsvLine(lines[0]).map(h => h.trim())
   for (const required of REQUIRED_HEADERS) {
     if (!headers.includes(required)) {
       throw new AppError('VALIDATION_ERROR', `Nubank CSV missing required column: ${required}`)
@@ -22,7 +46,7 @@ export function parseNubank(csvContent: string): ImportRow[] {
   }
 
   return lines.slice(1).map((line, i) => {
-    const cols = line.split(',').map(c => c.trim())
+    const cols = parseCsvLine(line).map(c => c.trim())
     const dateStr = cols[idx.date]
     const title = cols[idx.title]
     const valueStr = cols[idx.value]

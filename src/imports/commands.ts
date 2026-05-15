@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { AppError } from '../errors'
 import { success, isPretty, prettyTable } from '../output'
 import { getAccount } from '../accounts/db'
+import { getCategory } from '../categories/db'
 import { createImport, listImports, deleteImport } from './db'
 import { parseNubank } from './parsers/nubank'
 import type { ImportRow } from './types'
@@ -50,6 +51,11 @@ export function registerImports(program: Command): void {
           if (!r.success) throw new AppError('VALIDATION_ERROR', `row ${i}: ${r.error.issues[0].message}`)
           return r.data
         })
+      }
+
+      const categoryIds = new Set(rows.map(r => r.categoryId).filter((v): v is string => !!v))
+      for (const id of categoryIds) {
+        if (!getCategory(id)) throw new AppError('NOT_FOUND', `category ${id} not found`)
       }
 
       const result = createImport({

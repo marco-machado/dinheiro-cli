@@ -127,6 +127,15 @@ export function registerTransactions(program: Command): void {
     .option('--occurred-at <date>')
     .option('--statement-period <YYYY-MM>')
     .action((id, opts) => {
+      if (opts.occurredAt && !occurredAtRe.test(opts.occurredAt)) {
+        throw new AppError('VALIDATION_ERROR', 'occurred-at must be YYYY-MM-DD')
+      }
+      if (opts.statementPeriod && !periodRe.test(opts.statementPeriod)) {
+        throw new AppError('VALIDATION_ERROR', 'statement-period must be YYYY-MM')
+      }
+      if (opts.category && !getCategory(opts.category)) {
+        throw new AppError('NOT_FOUND', `category ${opts.category} not found`)
+      }
       const updated = updateTransaction(id, {
         amount: opts.amount,
         description: opts.description,
@@ -161,6 +170,14 @@ export function registerTransactions(program: Command): void {
         }
         return parsed.data
       })
+      const accountIds = new Set(rows.map(r => r.accountId))
+      for (const id of accountIds) {
+        if (!getAccount(id)) throw new AppError('NOT_FOUND', `account ${id} not found`)
+      }
+      const categoryIds = new Set(rows.map(r => r.categoryId).filter((v): v is string => !!v))
+      for (const id of categoryIds) {
+        if (!getCategory(id)) throw new AppError('NOT_FOUND', `category ${id} not found`)
+      }
       const result = batchCreateTransactions(rows)
       success(result)
     })

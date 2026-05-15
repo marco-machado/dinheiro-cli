@@ -45,6 +45,7 @@ describe('imports canonical', () => {
     ]
     expect(() => createImport({ accountId, format: 'canonical', filename: 'bad.json', rows: badRows })).toThrow()
     expect(listTransactions({})).toHaveLength(0)
+    expect(listImports()).toHaveLength(0)
   })
 
   it('lists imports', () => {

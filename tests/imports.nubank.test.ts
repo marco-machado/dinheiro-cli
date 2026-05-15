@@ -35,4 +35,18 @@ describe('nubank parser', () => {
   it('handles empty file', () => {
     expect(parseNubank('Data,Categoria,Título,Valor\n')).toHaveLength(0)
   })
+
+  it('handles quoted fields with embedded commas', () => {
+    const csv = `Data,Categoria,Título,Valor\n2026-05-15,Food,"Mercado, padaria",-45.90`
+    const rows = parseNubank(csv)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].description).toBe('Mercado, padaria')
+    expect(rows[0].amount).toBe(-4590)
+  })
+
+  it('handles escaped double-quotes inside quoted fields', () => {
+    const csv = `Data,Categoria,Título,Valor\n2026-05-15,Food,"He said ""hi""",-10.00`
+    const rows = parseNubank(csv)
+    expect(rows[0].description).toBe('He said "hi"')
+  })
 })
