@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { Command } from 'commander'
 import { AppError } from './errors'
 import { failure } from './output'
