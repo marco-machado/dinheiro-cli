@@ -4,6 +4,7 @@ import { failure } from './output'
 import { initDb } from './db'
 import { registerAccounts } from './accounts/commands'
 import { registerCategories } from './categories/commands'
+import { registerTransactions } from './transactions/commands'
 
 const program = new Command()
 
@@ -20,6 +21,7 @@ function resolveDbPath(): string | undefined {
 
 registerAccounts(program)
 registerCategories(program)
+registerTransactions(program)
 
 try {
   initDb(resolveDbPath())
