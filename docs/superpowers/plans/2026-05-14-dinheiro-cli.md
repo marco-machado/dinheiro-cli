@@ -80,6 +80,7 @@ skill/
 - Create: `tsconfig.json`
 - Create: `drizzle.config.ts`
 - Create: `vitest.config.ts`
+- Create: `.gitignore`
 
 - [ ] **Step 1: Create `package.json`**
 
@@ -166,7 +167,20 @@ export default defineConfig({
 })
 ```
 
-- [ ] **Step 5: Install dependencies**
+- [ ] **Step 5: Create `.gitignore`**
+
+```
+node_modules/
+dist/
+*.db
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+.DS_Store
+```
+
+- [ ] **Step 6: Install dependencies**
 
 ```bash
 npm install
@@ -174,10 +188,10 @@ npm install
 
 Expected: `node_modules/` created, no errors. Note: `better-sqlite3` compiles a native addon. If the build fails, ensure a C++ toolchain is available (`xcode-select --install` on macOS).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add package.json tsconfig.json drizzle.config.ts vitest.config.ts
+git add package.json tsconfig.json drizzle.config.ts vitest.config.ts .gitignore
 git commit -m "chore: project scaffold"
 ```
 
@@ -439,7 +453,13 @@ try {
   }
   const isCommanderError = err && typeof err === 'object' && 'code' in err && 'exitCode' in err
   if (isCommanderError) {
-    failure((err as Error).message, 'VALIDATION_ERROR')
+    const ce = err as { code: string; exitCode: number; message: string }
+    // Help/version are not errors — Commander throws them because of exitOverride().
+    // Let them exit cleanly without emitting a JSON error envelope.
+    if (ce.code === 'commander.helpDisplayed' || ce.code === 'commander.version' || ce.exitCode === 0) {
+      process.exit(0)
+    }
+    failure(ce.message, 'VALIDATION_ERROR')
     process.exit(1)
   }
   failure(err instanceof Error ? err.message : String(err), 'DB_ERROR')
@@ -569,6 +589,7 @@ import { eq } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { getDb } from '../db'
 import { accounts } from '../schema/index'
+import { AppError } from '../errors'
 import type { Account } from './types'
 
 export function createAccount(data: {
@@ -614,7 +635,15 @@ export function updateAccount(id: string, data: {
 
 export function deleteAccount(id: string): void {
   const db = getDb()
-  db.delete(accounts).where(eq(accounts.id, id)).run()
+  try {
+    db.delete(accounts).where(eq(accounts.id, id)).run()
+  } catch (err: any) {
+    // foreign_keys = ON means SQLite raises SQLITE_CONSTRAINT_FOREIGNKEY when transactions/imports reference this account.
+    if (err?.code === 'SQLITE_CONSTRAINT_FOREIGNKEY' || /FOREIGN KEY/i.test(err?.message ?? '')) {
+      throw new AppError('CONFLICT', `account ${id} has associated transactions or imports`)
+    }
+    throw err
+  }
 }
 ```
 
@@ -773,9 +802,6 @@ import { setupTestDb } from './helpers'
 import {
   createCategory, getCategory, listCategories, updateCategory, deleteCategory
 } from '../src/categories/db'
-import { createAccount } from '../src/accounts/db'
-import { createTransaction } from '../src/transactions/db'
-import { AppError } from '../src/errors'
 
 beforeEach(() => { setupTestDb() })
 
@@ -811,18 +837,10 @@ describe('categories', () => {
     deleteCategory(c.id)
     expect(getCategory(c.id)).toBeUndefined()
   })
-
-  it('throws CONFLICT when deleting category with transactions', () => {
-    const cat = createCategory({ name: 'food' })
-    const acc = createAccount({ name: 'NuConta', type: 'checking' })
-    createTransaction({
-      accountId: acc.id, amount: -1000, description: 'lunch',
-      occurredAt: '2026-05-01', categoryId: cat.id,
-    })
-    expect(() => deleteCategory(cat.id)).toThrow(AppError)
-  })
 })
 ```
+
+The CONFLICT-on-delete behavior is implemented here in `deleteCategory`, but its test depends on `createTransaction` and lives in `tests/transactions.test.ts` (Task 6) so this task ends green.
 
 - [ ] **Step 2: Run tests to confirm they fail**
 
@@ -898,15 +916,13 @@ export function createTransaction(_data: any): any {
 }
 ```
 
-- [ ] **Step 6: Run tests — expect category tests to pass except the CONFLICT test**
+- [ ] **Step 6: Run tests — expect all category tests to pass**
 
 ```bash
 npm test -- tests/categories.test.ts
 ```
 
-Expected: 6 pass, 1 fail (CONFLICT test calls `createTransaction` which throws "Not implemented yet").
-
-Note: the CONFLICT test will be verified again in Task 6 once `createTransaction` is real. Move on.
+Expected: all 6 tests pass. The CONFLICT-on-delete path in `deleteCategory` is exercised in Task 6 via `tests/transactions.test.ts` once `createTransaction` is real.
 
 - [ ] **Step 7: Create `src/categories/commands.ts`**
 
@@ -1036,7 +1052,7 @@ export interface TransactionInput {
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setupTestDb } from './helpers'
 import { createAccount } from '../src/accounts/db'
-import { createCategory } from '../src/categories/db'
+import { createCategory, deleteCategory } from '../src/categories/db'
 import {
   createTransaction, getTransaction, listTransactions,
   updateTransaction, deleteTransaction, batchCreateTransactions,
@@ -1141,6 +1157,11 @@ describe('transactions', () => {
     const h2 = computeRowHash('acc1', '2026-05-01', -100, 'lunch')
     expect(h1).toBe(h2)
     expect(h1).toHaveLength(64)
+  })
+
+  it('deleting a category with associated transactions throws CONFLICT', () => {
+    createTransaction({ accountId, amount: -1000, description: 'lunch', occurredAt: '2026-05-01', categoryId })
+    expect(() => deleteCategory(categoryId)).toThrow(AppError)
   })
 })
 ```
@@ -1293,15 +1314,7 @@ npm test -- tests/transactions.test.ts
 
 Expected: all tests pass.
 
-- [ ] **Step 6: Re-run category CONFLICT test now that createTransaction is real**
-
-```bash
-npm test -- tests/categories.test.ts
-```
-
-Expected: all 7 category tests pass including the CONFLICT test.
-
-- [ ] **Step 7: Create `src/transactions/commands.ts`**
+- [ ] **Step 6: Create `src/transactions/commands.ts`**
 
 ```ts
 import { Command } from 'commander'
@@ -1473,7 +1486,7 @@ export function registerTransactions(program: Command): void {
 }
 ```
 
-- [ ] **Step 8: Wire transactions into `src/index.ts`**
+- [ ] **Step 7: Wire transactions into `src/index.ts`**
 
 Add import:
 ```ts
@@ -1485,15 +1498,15 @@ Add call:
 registerTransactions(program)
 ```
 
-- [ ] **Step 9: Verify build and all tests pass**
+- [ ] **Step 8: Verify build and all tests pass**
 
 ```bash
 npx tsc --noEmit && npm test
 ```
 
-Expected: no compile errors, all tests pass.
+Expected: no compile errors, all tests pass (including the category CONFLICT test now that `createTransaction` is real).
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add src/transactions/ src/index.ts tests/transactions.test.ts
@@ -1608,22 +1621,26 @@ export function createTransfer(data: {
   occurredAt: string
   description?: string
 }): TransferResult {
+  const db = getDb()
   const transferId = ulid()
   const description = data.description ?? 'Transfer'
-  createTransaction({
-    accountId: data.fromAccountId,
-    amount: -data.amount,
-    description,
-    occurredAt: data.occurredAt,
-    transferId,
-  })
-  createTransaction({
-    accountId: data.toAccountId,
-    amount: data.amount,
-    description,
-    occurredAt: data.occurredAt,
-    transferId,
-  })
+  const sqlite = (db as any).session.client as import('better-sqlite3').Database
+  sqlite.transaction(() => {
+    createTransaction({
+      accountId: data.fromAccountId,
+      amount: -data.amount,
+      description,
+      occurredAt: data.occurredAt,
+      transferId,
+    })
+    createTransaction({
+      accountId: data.toAccountId,
+      amount: data.amount,
+      description,
+      occurredAt: data.occurredAt,
+      transferId,
+    })
+  })()
   return {
     transferId,
     fromAccountId: data.fromAccountId,
@@ -1643,31 +1660,29 @@ export interface TransferFilters {
 export function listTransfers(filters: TransferFilters): TransferResult[] {
   const db = getDb()
   const conditions = [isNotNull(transactions.transferId)]
-  if (filters.accountId) conditions.push(eq(transactions.accountId, filters.accountId))
   if (filters.from) conditions.push(gte(transactions.occurredAt, filters.from))
   if (filters.to) conditions.push(lte(transactions.occurredAt, filters.to))
 
-  // Return one row per transfer (the outflow side, amount < 0)
+  // Fetch ALL transfer rows in the date window (both sides), then group and filter by account in memory.
+  // We cannot filter by accountId in SQL: that would return only one side of cross-account transfers.
   const rows = db.select().from(transactions).where(and(...conditions)).all()
 
-  // Group by transferId and return one entry per pair
   const seen = new Map<string, TransferResult>()
   for (const row of rows) {
     if (!row.transferId || seen.has(row.transferId)) continue
-    // find both sides
     const pair = rows.filter(r => r.transferId === row.transferId)
     const outRow = pair.find(r => r.amount < 0)
     const inRow = pair.find(r => r.amount > 0)
-    if (outRow && inRow) {
-      seen.set(row.transferId, {
-        transferId: row.transferId,
-        fromAccountId: outRow.accountId,
-        toAccountId: inRow.accountId,
-        amount: inRow.amount,
-        occurredAt: row.occurredAt,
-        description: row.description,
-      })
-    }
+    if (!outRow || !inRow) continue
+    if (filters.accountId && outRow.accountId !== filters.accountId && inRow.accountId !== filters.accountId) continue
+    seen.set(row.transferId, {
+      transferId: row.transferId,
+      fromAccountId: outRow.accountId,
+      toAccountId: inRow.accountId,
+      amount: inRow.amount,
+      occurredAt: row.occurredAt,
+      description: row.description,
+    })
   }
   return Array.from(seen.values())
 }
@@ -2268,11 +2283,25 @@ npm test -- tests/imports.test.ts
 
 Expected: all 6 tests pass.
 
-- [ ] **Step 6: Create `src/imports/commands.ts`**
+- [ ] **Step 6: Stub `src/imports/parsers/nubank.ts` (real implementation lands in Task 10)**
+
+```ts
+// src/imports/parsers/nubank.ts
+import type { ImportRow } from '../types'
+
+export function parseNubank(_csv: string): ImportRow[] {
+  throw new Error('Not implemented yet — see Task 10')
+}
+```
+
+This stub exists so `imports/commands.ts` below compiles and `npx tsc --noEmit` passes at the end of this task. Task 10 replaces it with the real parser.
+
+- [ ] **Step 7: Create `src/imports/commands.ts`**
 
 ```ts
 import { Command } from 'commander'
 import fs from 'fs'
+import path from 'path'
 import { z } from 'zod'
 import { AppError } from '../errors'
 import { success, isPretty, prettyTable } from '../output'
@@ -2327,7 +2356,7 @@ export function registerImports(program: Command): void {
       const result = createImport({
         accountId: opts.account,
         format: opts.format as 'canonical' | 'nubank',
-        filename: require('path').basename(opts.file),
+        filename: path.basename(opts.file),
         rows,
         dryRun: !!opts.dryRun,
       })
@@ -2357,7 +2386,7 @@ export function registerImports(program: Command): void {
 }
 ```
 
-- [ ] **Step 7: Wire imports into `src/index.ts`**
+- [ ] **Step 8: Wire imports into `src/index.ts`**
 
 Add import:
 ```ts
@@ -2369,15 +2398,15 @@ Add call:
 registerImports(program)
 ```
 
-- [ ] **Step 8: Verify build and all tests pass**
+- [ ] **Step 9: Verify build and all tests pass**
 
 ```bash
 npx tsc --noEmit && npm test
 ```
 
-Expected: no errors, all tests pass.
+Expected: no errors. The Nubank parser stub means `imports.nubank.test.ts` is not yet written; all other tests pass.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add src/imports/ src/index.ts tests/imports.test.ts
@@ -2395,8 +2424,9 @@ git commit -m "feat: imports canonical + list + delete"
 
 - [ ] **Step 1: Create the test fixture**
 
+Path: `tests/fixtures/nubank-sample.csv`. Write exactly these lines as the file contents (no leading comment):
+
 ```csv
-// tests/fixtures/nubank-sample.csv
 Data,Categoria,Título,Valor
 2026-05-15,Food,iFood,-45.90
 2026-05-14,Transport,Uber,-23.50
@@ -2688,7 +2718,7 @@ dinheiro transactions list \
   [--search <str>] \
   [--limit N]
 ```
-`--search` does case-insensitive substring match on description.
+`--search` does substring match on description. SQLite's `LIKE` is case-insensitive for ASCII letters only, so `--search cafe` will **not** match descriptions like `Café` (accented chars only match themselves, in the same case). Strip accents from the search term and the description if you need fuzzy matches.
 
 ### transactions get
 ```
