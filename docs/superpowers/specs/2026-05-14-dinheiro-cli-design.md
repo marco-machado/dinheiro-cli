@@ -71,6 +71,17 @@ All IDs are ULIDs. Amounts are signed integers in cents (negative = outflow/expe
 | `created_at` | int NOT NULL | unix ms |
 | `updated_at` | int NOT NULL | unix ms |
 
+### `imports`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | text PK | ULID — also used as `import_batch_id` on transactions |
+| `account_id` | text NOT NULL | FK → accounts |
+| `format` | text NOT NULL | `'canonical'` \| `'nubank'` |
+| `filename` | text NOT NULL | original filename for reference |
+| `row_count` | int NOT NULL | number of transactions imported |
+| `created_at` | int NOT NULL | unix ms |
+| `updated_at` | int NOT NULL | unix ms |
+
 ### `transactions`
 | Column | Type | Notes |
 |---|---|---|
@@ -82,11 +93,11 @@ All IDs are ULIDs. Amounts are signed integers in cents (negative = outflow/expe
 | `category_id` | text | FK → categories; NULL only for transfers |
 | `statement_period` | text | YYYY-MM; credit_card only; caller-supplied |
 | `transfer_id` | text | links the two sides of a transfer pair |
-| `import_batch_id` | text | groups bulk-imported rows |
+| `import_batch_id` | text | FK → imports.id; groups bulk-imported rows |
 | `created_at` | int NOT NULL | unix ms |
 | `updated_at` | int NOT NULL | unix ms |
 
-**Transfer semantics:** a transfer creates two transaction rows sharing a `transfer_id`. Outflow side has negative `amount`, inflow side positive. Reports exclude rows where `transfer_id IS NOT NULL` from income/expense totals.
+**Transfer semantics:** a transfer creates two transaction rows sharing a `transfer_id`. The caller passes a positive `--amount`; the CLI writes it as negative on the `--from` account and positive on the `--to` account. Reports exclude rows where `transfer_id IS NOT NULL` from income/expense totals.
 
 **Validation rules (enforced at Zod layer):**
 - `category_id` is required when `transfer_id` is null
@@ -148,8 +159,8 @@ reports monthly   [--month YYYY-MM] [--account <id>]
 reports statement --account <id> --period YYYY-MM
 ```
 
-`reports monthly` defaults to the current month. Excludes transfer rows from totals.
-`reports statement` lists all transactions for a credit card's billing period.
+`reports monthly` defaults to the current month. When `--account` is provided, output is scoped to that account only; otherwise it aggregates across all accounts. Excludes transfer rows from totals.
+`reports statement` lists all transactions for a credit card's billing period, grouped by `statement_period`.
 
 ### `imports`
 ```
