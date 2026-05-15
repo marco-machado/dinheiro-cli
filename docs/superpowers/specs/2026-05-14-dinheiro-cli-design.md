@@ -41,10 +41,21 @@ skill/
 
 **CLI command shape:** `dinheiro <noun> <verb> [args] [flags]`
 
+`--version` and `--help` are provided by commander at the root and on each subcommand.
+
 **Output contract:**
 - Success → stdout JSON, exit 0
 - Error → stderr JSON, exit non-zero
 - `--pretty` → stdout human-readable table/summary; stderr errors remain JSON always
+
+**Configuration:** `~/.config/dinheiro/config.json` (XDG; overridable via `DINHEIRO_CONFIG`). Supported keys:
+- `db` — DB file path (same as `DINHEIRO_DB`; env var takes precedence)
+- `pretty` — boolean; default output mode
+- `currencySymbol` — string used in `--pretty` output (default: `R$`)
+
+Config is optional; all keys have defaults. No config management commands in v1 — users edit the file directly.
+
+**Native addon:** `better-sqlite3` requires a C++ toolchain at install time. Prebuild binaries are published for common platforms (macOS, Linux x64/arm64, Windows x64) via `@mapbox/node-pre-gyp`. Installation instructions must document this and suggest `npm install --ignore-scripts` fallback path for CI environments where prebuilds match.
 
 ---
 
@@ -98,7 +109,17 @@ All IDs are ULIDs. Amounts are signed integers in cents (negative = outflow/expe
 | `created_at` | int NOT NULL | unix ms |
 | `updated_at` | int NOT NULL | unix ms |
 
-**Transfer semantics:** a transfer creates two transaction rows sharing a `transfer_id`. The caller passes a positive `--amount`; the CLI writes it as negative on the `--from` account and positive on the `--to` account. Reports exclude rows where `transfer_id IS NOT NULL` from income/expense totals. Transfer rows are immutable via the `transactions` commands — `transactions update` and `transactions delete` return `CONFLICT` if the target row has a `transfer_id`. Use `transfers delete` to remove both sides atomically.
+**Transfer semantics:** a transfer creates two transaction rows sharing a `transfer_id`. The caller passes a positive `--amount`; the CLI writes it as negative on the `--from` account and positive on the `--to` account. Reports exclude transfer rows from income/expense totals but include them as a separate `transfers_out`/`transfers_in` line item so they remain visible. Transfer rows are immutable via the `transactions` commands — `transactions update` and `transactions delete` return `CONFLICT` if the target row has a `transfer_id`. Use `transfers delete` to remove both sides atomically.
+
+**Indexes:** the following indexes are defined in the initial migration:
+- `transactions(account_id)`
+- `transactions(occurred_at)` — stored as text YYYY-MM-DD; lexicographic sort is correct for date ranges
+- `transactions(category_id)`
+- `transactions(statement_period)`
+- `transactions(transfer_id)`
+- `transactions(import_batch_id)`
+- `transactions(account_id, occurred_at)` — composite; covers most report queries
+- `transactions(row_hash)` — implicitly indexed via UNIQUE constraint
 
 **Validation phases:**
 1. **Shape validation (Zod)** — types, required fields, format (YYYY-MM-DD, YYYY-MM, positive int, etc.)
@@ -137,8 +158,8 @@ transactions create       --account <id> --amount <int> --description <str>
                           [--statement-period YYYY-MM]
 transactions list         [--account <id>] [--category <id>]
                           [--from YYYY-MM-DD] [--to YYYY-MM-DD]
-                          [--statement-period YYYY-MM] [--search <str>]
-                          [--limit N]
+                          [--statement-period YYYY-MM] [--import-batch <id>]
+                          [--search <str>] [--limit N]
 transactions get          <id>
 transactions update       <id> [--amount <int>] [--description <str>]
                                [--category <id>] [--occurred-at YYYY-MM-DD]
@@ -167,7 +188,7 @@ reports monthly   [--month YYYY-MM] [--account <id>]
 reports statement --account <id> --period YYYY-MM
 ```
 
-`reports monthly` defaults to the current month. When `--account` is provided, output is scoped to that account only; otherwise aggregates across all accounts. Excludes transfer rows from totals.
+`reports monthly` defaults to the current month. When `--account` is provided, output is scoped to that account only; otherwise aggregates across all accounts.
 
 Output shape:
 ```json
@@ -176,19 +197,26 @@ Output shape:
   "income_total": <int>,
   "expense_total": <int>,
   "net": <int>,
+  "transfers_out": <int>,
+  "transfers_in": <int>,
   "by_category": [
     { "category": "<name>", "total": <int>, "pct": <float> }
   ]
 }
 ```
 
-`reports statement` lists all transactions for a credit card's billing period (filtered by `statement_period`).
+`transfers_out`/`transfers_in` are shown as separate line items; transfer rows are excluded from `income_total` and `expense_total`.
+
+`reports statement --account <id> --period YYYY-MM` returns the transaction list for that credit card's billing period. One period per call; for all periods use `transactions list --statement-period`.
 
 ### `imports`
 ```
 imports create --account <id> --file <path> [--format canonical|nubank] [--dry-run]
 imports list
+imports delete <id>   ← atomically deletes the imports record + all transactions with that import_batch_id
 ```
+
+`--format` defaults to `canonical` if omitted.
 
 `canonical` format: JSON array; each row uses the `transactions create` field shape without an `account` field — `--account` is authoritative for all rows.
 
@@ -242,13 +270,17 @@ Error (stderr):
 | `CONFLICT` | Mutating a transfer row via transactions commands; deleting a category with transactions |
 | `DB_ERROR` | Unexpected SQLite error |
 
+### Validation architecture
+
+`drizzle-zod` generates base Zod schemas from Drizzle table definitions (field types, nullability). Cross-field and DB-dependent rules are layered on top via Zod `.superRefine()` calls in the command handler — e.g. `category_id` required when `transfer_id` is null, `statement_period` required for credit_card accounts. These refinements run after the account is fetched from the DB, not during initial Zod parse.
+
 ### Testing
 
 Runner: `vitest` via `npx vitest run`.
 
 **Unit tests** — Zod schema validation, output formatting helpers, import parsers (nubank CSV → canonical), `row_hash` computation. No DB.
 
-**Integration tests** — each command tested against a real in-memory `better-sqlite3` instance, seeded per test. Covers: happy path, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, transfer immutability, import dedup (skipped count), import rollback on partial failure. No mocking of the DB layer — synchronous SQLite is fast enough.
+**Integration tests** — each command tested against a real in-memory `better-sqlite3` instance (`:memory:`). Migrations are applied programmatically via a `runMigrations(db)` helper that executes the SQL migration files in order using `db.exec()` — this bypasses `drizzle-kit` (which targets file paths) and works correctly against `:memory:`. Each test gets a fresh DB. Covers: happy path, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, transfer immutability, import dedup (skipped count), import rollback on partial failure.
 
 ---
 
