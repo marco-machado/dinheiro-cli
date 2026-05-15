@@ -6,6 +6,7 @@ import { registerAccounts } from './accounts/commands'
 import { registerCategories } from './categories/commands'
 import { registerTransactions } from './transactions/commands'
 import { registerTransfers } from './transfers/commands'
+import { registerReports } from './reports/commands'
 
 const program = new Command()
 
@@ -24,6 +25,7 @@ registerAccounts(program)
 registerCategories(program)
 registerTransactions(program)
 registerTransfers(program)
+registerReports(program)
 
 try {
   initDb(resolveDbPath())
