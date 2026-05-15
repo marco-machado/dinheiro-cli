@@ -5,6 +5,7 @@ import { initDb } from './db'
 import { registerAccounts } from './accounts/commands'
 import { registerCategories } from './categories/commands'
 import { registerTransactions } from './transactions/commands'
+import { registerTransfers } from './transfers/commands'
 
 const program = new Command()
 
@@ -22,6 +23,7 @@ function resolveDbPath(): string | undefined {
 registerAccounts(program)
 registerCategories(program)
 registerTransactions(program)
+registerTransfers(program)
 
 try {
   initDb(resolveDbPath())
