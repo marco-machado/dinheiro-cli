@@ -19,7 +19,7 @@ A personal finance CLI tool driven by AI agents. The CLI is the agent's primary 
 - `drizzle-orm` + `drizzle-kit` — schema-as-code, typed queries, migrations
 - `drizzle-zod` — derives Zod schemas from Drizzle table definitions
 - `zod` — runtime validation of all CLI inputs and import files
-- `commander` — CLI subcommand dispatch
+- `commander` — CLI subcommand dispatch; configured with `exitOverride()` + `configureOutput()` so parse errors emit JSON to stderr instead of usage text
 
 **Module structure:**
 ```
@@ -44,7 +44,7 @@ skill/
 **Output contract:**
 - Success → stdout JSON, exit 0
 - Error → stderr JSON, exit non-zero
-- `--pretty` → stdout human-readable table/summary; stderr errors remain JSON
+- `--pretty` → stdout human-readable table/summary; stderr errors remain JSON always
 
 ---
 
@@ -78,7 +78,7 @@ All IDs are ULIDs. Amounts are signed integers in cents (negative = outflow/expe
 | `account_id` | text NOT NULL | FK → accounts |
 | `format` | text NOT NULL | `'canonical'` \| `'nubank'` |
 | `filename` | text NOT NULL | original filename for reference |
-| `row_count` | int NOT NULL | number of transactions imported |
+| `row_count` | int NOT NULL | number of transactions successfully imported |
 | `created_at` | int NOT NULL | unix ms |
 | `updated_at` | int NOT NULL | unix ms |
 
@@ -91,18 +91,21 @@ All IDs are ULIDs. Amounts are signed integers in cents (negative = outflow/expe
 | `description` | text NOT NULL | |
 | `occurred_at` | text NOT NULL | YYYY-MM-DD |
 | `category_id` | text | FK → categories; NULL only for transfers |
-| `statement_period` | text | YYYY-MM; credit_card only; caller-supplied |
+| `statement_period` | text | YYYY-MM; REQUIRED for credit_card transactions; caller-supplied |
 | `transfer_id` | text | links the two sides of a transfer pair |
 | `import_batch_id` | text | FK → imports.id; groups bulk-imported rows |
+| `row_hash` | text UNIQUE | SHA-256 of `account_id + occurred_at + amount + description`; used for dedup on import |
 | `created_at` | int NOT NULL | unix ms |
 | `updated_at` | int NOT NULL | unix ms |
 
-**Transfer semantics:** a transfer creates two transaction rows sharing a `transfer_id`. The caller passes a positive `--amount`; the CLI writes it as negative on the `--from` account and positive on the `--to` account. Reports exclude rows where `transfer_id IS NOT NULL` from income/expense totals.
+**Transfer semantics:** a transfer creates two transaction rows sharing a `transfer_id`. The caller passes a positive `--amount`; the CLI writes it as negative on the `--from` account and positive on the `--to` account. Reports exclude rows where `transfer_id IS NOT NULL` from income/expense totals. Transfer rows are immutable via the `transactions` commands — `transactions update` and `transactions delete` return `CONFLICT` if the target row has a `transfer_id`. Use `transfers delete` to remove both sides atomically.
 
-**Validation rules (enforced at Zod layer):**
-- `category_id` is required when `transfer_id` is null
-- `statement_period` is only valid when the linked account has `type = 'credit_card'`
-- `close_day` and `due_day` are only valid on `type = 'credit_card'` accounts
+**Validation phases:**
+1. **Shape validation (Zod)** — types, required fields, format (YYYY-MM-DD, YYYY-MM, positive int, etc.)
+2. **Business rule validation (command handler, after DB lookup)** — checks that require fetched state:
+   - `category_id` is required when `transfer_id` is null
+   - `statement_period` is required when the linked account has `type = 'credit_card'`; forbidden otherwise
+   - `close_day` and `due_day` are only valid on `type = 'credit_card'` accounts
 
 ---
 
@@ -134,23 +137,28 @@ transactions create       --account <id> --amount <int> --description <str>
                           [--statement-period YYYY-MM]
 transactions list         [--account <id>] [--category <id>]
                           [--from YYYY-MM-DD] [--to YYYY-MM-DD]
-                          [--statement-period YYYY-MM] [--limit N]
+                          [--statement-period YYYY-MM] [--search <str>]
+                          [--limit N]
 transactions get          <id>
 transactions update       <id> [--amount <int>] [--description <str>]
                                [--category <id>] [--occurred-at YYYY-MM-DD]
                                [--statement-period YYYY-MM]
+                          ← returns CONFLICT if row has transfer_id
 transactions delete       <id>
+                          ← returns CONFLICT if row has transfer_id
 transactions batch-create --file <path>
 ```
 
-`batch-create` accepts a JSON array where each element matches the `create` field shape.
+`--search` performs a case-insensitive LIKE match on `description`.
+
+`batch-create` accepts a JSON array where each element matches the `create` field shape. The entire batch is wrapped in a single SQLite transaction — on any row failure the whole batch rolls back.
 
 ### `transfers`
 ```
 transfers create --from <account-id> --to <account-id> --amount <positive int>
                  --occurred-at YYYY-MM-DD [--description <str>]
 transfers list   [--account <id>] [--from YYYY-MM-DD] [--to YYYY-MM-DD]
-transfers delete <transfer-id>   ← deletes both sides atomically in a transaction
+transfers delete <transfer-id>   ← deletes both sides atomically in a single SQLite transaction
 ```
 
 ### `reports`
@@ -159,19 +167,40 @@ reports monthly   [--month YYYY-MM] [--account <id>]
 reports statement --account <id> --period YYYY-MM
 ```
 
-`reports monthly` defaults to the current month. When `--account` is provided, output is scoped to that account only; otherwise it aggregates across all accounts. Excludes transfer rows from totals.
-`reports statement` lists all transactions for a credit card's billing period, grouped by `statement_period`.
+`reports monthly` defaults to the current month. When `--account` is provided, output is scoped to that account only; otherwise aggregates across all accounts. Excludes transfer rows from totals.
+
+Output shape:
+```json
+{
+  "month": "YYYY-MM",
+  "income_total": <int>,
+  "expense_total": <int>,
+  "net": <int>,
+  "by_category": [
+    { "category": "<name>", "total": <int>, "pct": <float> }
+  ]
+}
+```
+
+`reports statement` lists all transactions for a credit card's billing period (filtered by `statement_period`).
 
 ### `imports`
 ```
-imports create --account <id> --file <path> [--format canonical|nubank]
+imports create --account <id> --file <path> [--format canonical|nubank] [--dry-run]
 imports list
 ```
 
-`canonical` format: JSON array matching the `transactions create` field shape.
-`nubank`: built-in CSV parser for Nubank credit card exports.
-Additional banks added as new `--format` values over time.
-`imports list` returns past batches with row counts and created_at.
+`canonical` format: JSON array; each row uses the `transactions create` field shape without an `account` field — `--account` is authoritative for all rows.
+
+`nubank`: built-in CSV parser for Nubank credit card exports. Additional banks added as new `--format` values over time.
+
+`--dry-run`: validates and parses the file, prints what would be inserted (including duplicate row counts), but makes no DB writes.
+
+**Import deduplication:** before inserting each row, the CLI computes `row_hash = SHA-256(account_id + occurred_at + amount + description)`. Rows with a hash already in the DB are silently skipped; the response includes `{ inserted, skipped }` counts.
+
+**Import atomicity:** all inserts (including the `imports` record) are wrapped in a single SQLite transaction. On any failure the whole batch rolls back and no partial state is written.
+
+`imports list` returns past batches ordered by `created_at` desc, with `row_count` and `filename`.
 
 ---
 
@@ -181,13 +210,17 @@ Additional banks added as new `--format` values over time.
 ```
 index.ts (commander)
   → command handler
-  → Zod.parse(input)
+  → Zod.parse(input)              ← shape validation
+  → DB lookup (account, category) ← fetch referenced entities
+  → business rule checks          ← validate against fetched state
   → Drizzle query (via feature db.ts)
   → output.ts
   → stdout JSON, exit 0
 ```
 
 Top-level `catch` in `index.ts` writes error JSON to stderr and exits non-zero.
+
+Commander is configured with `program.exitOverride()` and `program.configureOutput({ writeErr: () => {} })` so its own parse errors are caught and re-emitted as JSON — no usage text leaks to stderr.
 
 ### Output envelopes
 
@@ -204,18 +237,18 @@ Error (stderr):
 ### Error codes
 | Code | Meaning |
 |---|---|
-| `VALIDATION_ERROR` | Zod parse failure, invalid flag values |
+| `VALIDATION_ERROR` | Zod parse failure, invalid flag values, failed business rule check |
 | `NOT_FOUND` | Referenced account, category, or transaction doesn't exist |
-| `CONFLICT` | e.g. deleting a category that has transactions |
+| `CONFLICT` | Mutating a transfer row via transactions commands; deleting a category with transactions |
 | `DB_ERROR` | Unexpected SQLite error |
 
 ### Testing
 
 Runner: `vitest` via `npx vitest run`.
 
-**Unit tests** — Zod schema validation, output formatting helpers, import parsers (nubank CSV → canonical). No DB.
+**Unit tests** — Zod schema validation, output formatting helpers, import parsers (nubank CSV → canonical), `row_hash` computation. No DB.
 
-**Integration tests** — each command tested against a real in-memory `better-sqlite3` instance, seeded per test. Covers: happy path, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`. No mocking of the DB layer — synchronous SQLite is fast enough.
+**Integration tests** — each command tested against a real in-memory `better-sqlite3` instance, seeded per test. Covers: happy path, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, transfer immutability, import dedup (skipped count), import rollback on partial failure. No mocking of the DB layer — synchronous SQLite is fast enough.
 
 ---
 
