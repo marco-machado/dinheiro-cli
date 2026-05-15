@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import { AppError } from './errors'
 import { failure } from './output'
 import { initDb } from './db'
+import { registerAccounts } from './accounts/commands'
 
 const program = new Command()
 
@@ -15,6 +16,8 @@ program
 function resolveDbPath(): string | undefined {
   return process.env.DINHEIRO_DB
 }
+
+registerAccounts(program)
 
 try {
   initDb(resolveDbPath())
