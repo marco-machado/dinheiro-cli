@@ -10,7 +10,8 @@
   },
   "files": [
     "dist",
-    "migrations"
+    "migrations",
+    "skill"
   ],
   "scripts": {
     "build": "tsc",
