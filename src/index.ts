@@ -2,13 +2,15 @@
 import { Command, CommanderError } from 'commander'
 import { AppError } from './errors'
 import { failure } from './output'
-import { initDb } from './db'
+import { initDb, closeDb } from './db'
 import { registerAccounts } from './accounts/commands'
 import { registerCategories } from './categories/commands'
 import { registerTransactions } from './transactions/commands'
 import { registerTransfers } from './transfers/commands'
 import { registerReports } from './reports/commands'
 import { registerImports } from './imports/commands'
+
+process.on('exit', () => closeDb())
 
 const program = new Command()
 
