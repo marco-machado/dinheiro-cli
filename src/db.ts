@@ -35,7 +35,12 @@ export function initDb(dbPath?: string): Db {
   sqlite.pragma('foreign_keys = ON')
 
   const db = drizzle(sqlite, { schema })
-  migrate(db, { migrationsFolder: path.resolve(__dirname, '../migrations') })
+  try {
+    migrate(db, { migrationsFolder: path.resolve(__dirname, '../migrations') })
+  } catch (err) {
+    sqlite.close()
+    throw err
+  }
 
   _sqlite = sqlite
   _db = db
