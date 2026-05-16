@@ -1,6 +1,6 @@
 import { eq, desc } from 'drizzle-orm'
 import { ulid } from 'ulid'
-import { getDb } from '../db'
+import { getDb, rawSqlite } from '../db'
 import { imports, transactions } from '../schema/index'
 import { AppError } from '../errors'
 import { computeRowHash } from '../transactions/db'
@@ -19,7 +19,7 @@ export function createImport(data: {
   let inserted = 0
   let skipped = 0
 
-  const sqlite = (db as any).session.client as import('better-sqlite3').Database
+  const sqlite = rawSqlite(db)
 
   if (data.dryRun) {
     for (const row of data.rows) {
@@ -29,7 +29,8 @@ export function createImport(data: {
         .from(transactions)
         .where(eq(transactions.rowHash, hash))
         .get()
-      exists ? skipped++ : inserted++
+      if (exists) skipped++
+      else inserted++
     }
     return { importId, inserted, skipped }
   }
@@ -93,7 +94,7 @@ export function deleteImport(id: string): void {
   const db = getDb()
   const existing = db.select({ id: imports.id }).from(imports).where(eq(imports.id, id)).get()
   if (!existing) throw new AppError('NOT_FOUND', `import ${id} not found`)
-  const sqlite = (db as any).session.client as import('better-sqlite3').Database
+  const sqlite = rawSqlite(db)
   sqlite.transaction(() => {
     db.delete(transactions).where(eq(transactions.importBatchId, id)).run()
     db.delete(imports).where(eq(imports.id, id)).run()

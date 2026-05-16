@@ -56,9 +56,10 @@ export function deleteAccount(id: string): void {
   const db = getDb()
   try {
     db.delete(accounts).where(eq(accounts.id, id)).run()
-  } catch (err: any) {
+  } catch (err) {
     // foreign_keys = ON means SQLite raises SQLITE_CONSTRAINT_FOREIGNKEY when transactions/imports reference this account.
-    if (err?.code === 'SQLITE_CONSTRAINT_FOREIGNKEY' || /FOREIGN KEY/i.test(err?.message ?? '')) {
+    const e = err as { code?: string; message?: string }
+    if (e.code === 'SQLITE_CONSTRAINT_FOREIGNKEY' || /FOREIGN KEY/i.test(e.message ?? '')) {
       throw new AppError('CONFLICT', `account ${id} has associated transactions or imports`)
     }
     throw err

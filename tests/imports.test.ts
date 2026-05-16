@@ -4,10 +4,6 @@ import { createAccount } from '../src/accounts/db'
 import { createCategory } from '../src/categories/db'
 import { listTransactions } from '../src/transactions/db'
 import { createImport, listImports, deleteImport } from '../src/imports/db'
-import { AppError } from '../src/errors'
-import path from 'path'
-import fs from 'fs'
-import os from 'os'
 
 let accountId: string
 let categoryId: string

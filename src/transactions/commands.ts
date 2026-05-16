@@ -136,7 +136,7 @@ export function registerTransactions(program: Command): void {
     .command('get')
     .argument('<id>')
     .option('--pretty')
-    .action((id, _opts) => {
+    .action((id) => {
       const t = getTransaction(id)
       if (!t) throw new AppError('NOT_FOUND', `transaction ${id} not found`)
       success(t)

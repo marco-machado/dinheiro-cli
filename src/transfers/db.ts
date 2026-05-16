@@ -1,6 +1,6 @@
 import { eq, and, gte, lte, isNotNull } from 'drizzle-orm'
 import { ulid } from 'ulid'
-import { getDb } from '../db'
+import { getDb, rawSqlite } from '../db'
 import { transactions } from '../schema/index'
 import { AppError } from '../errors'
 import { createTransaction } from '../transactions/db'
@@ -16,7 +16,7 @@ export function createTransfer(data: {
   const db = getDb()
   const transferId = ulid()
   const description = data.description ?? 'Transfer'
-  const sqlite = (db as any).session.client as import('better-sqlite3').Database
+  const sqlite = rawSqlite(db)
   sqlite.transaction(() => {
     createTransaction({
       accountId: data.fromAccountId,
@@ -90,7 +90,7 @@ export function deleteTransfer(transferId: string): void {
   const db = getDb()
   const rows = db.select().from(transactions).where(eq(transactions.transferId, transferId)).all()
   if (rows.length === 0) throw new AppError('NOT_FOUND', `transfer ${transferId} not found`)
-  const sqlite = (db as any).session.client as import('better-sqlite3').Database
+  const sqlite = rawSqlite(db)
   sqlite.transaction(() => {
     db.delete(transactions).where(eq(transactions.transferId, transferId)).run()
   })()

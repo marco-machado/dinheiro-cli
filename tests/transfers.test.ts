@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { setupTestDb } from './helpers'
 import { createAccount } from '../src/accounts/db'
 import { createTransfer, listTransfers, deleteTransfer } from '../src/transfers/db'
-import { getTransaction, listTransactions } from '../src/transactions/db'
+import { listTransactions } from '../src/transactions/db'
 
 let checkingId: string
 let cardId: string

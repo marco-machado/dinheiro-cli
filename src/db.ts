@@ -38,3 +38,7 @@ export function getDb(): Db {
   if (!_db) throw new Error('DB not initialized. Call initDb() first.')
   return _db
 }
+
+export function rawSqlite(db: Db): Database.Database {
+  return (db as unknown as { session: { client: Database.Database } }).session.client
+}
