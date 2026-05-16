@@ -902,7 +902,7 @@ npm install "$OLDPWD/$TARBALL"
 DINHEIRO_DB=":memory:" ./node_modules/.bin/dinheiro --version
 DINHEIRO_DB=":memory:" ./node_modules/.bin/dinheiro accounts list
 cd "$OLDPWD"
-trash "$TMPDIR" "$TARBALL"
+rm -rf "$TMPDIR" "$TARBALL"
 ```
 
 Expected: `--version` prints the version string, `accounts list` prints `{"ok":true,"data":[]}`, no errors about missing `dist/` or `migrations/`.
