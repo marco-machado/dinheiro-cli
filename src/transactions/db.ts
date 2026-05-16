@@ -1,7 +1,7 @@
 import { and, eq, gte, lte, like } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import crypto from 'crypto'
-import { getDb, rawSqlite } from '../db'
+import { getDb } from '../db'
 import { transactions } from '../schema/index'
 import { AppError } from '../errors'
 import type { Transaction, TransactionInput } from './types'
@@ -118,9 +118,7 @@ export function batchCreateTransactions(rows: TransactionInput[]): {
   let inserted = 0
   let skipped = 0
 
-  const sqlite = rawSqlite(db)
-
-  const runBatch = sqlite.transaction(() => {
+  db.transaction(() => {
     for (const row of rows) {
       const hash = computeRowHash(row.accountId, row.occurredAt, row.amount, row.description)
       const existing = db
@@ -137,6 +135,5 @@ export function batchCreateTransactions(rows: TransactionInput[]): {
     }
   })
 
-  runBatch()
   return { inserted, skipped }
 }

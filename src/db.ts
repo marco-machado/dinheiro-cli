@@ -54,7 +54,3 @@ export function closeDb(): void {
     _db = null
   }
 }
-
-export function rawSqlite(db: Db): Database.Database {
-  return (db as unknown as { session: { client: Database.Database } }).session.client
-}
