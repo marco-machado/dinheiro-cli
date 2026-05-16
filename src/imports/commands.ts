@@ -15,45 +15,57 @@ const canonicalRowSchema = z.object({
   description: z.string(),
   occurredAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   categoryId: z.string().optional(),
-  statementPeriod: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+  statementPeriod: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/)
+    .optional(),
 })
 
 export function registerImports(program: Command): void {
   const cmd = program.command('imports')
 
-  cmd.command('create')
+  cmd
+    .command('create')
     .requiredOption('--account <id>')
     .requiredOption('--file <path>')
     .option('--format <format>', 'canonical or nubank', 'canonical')
     .option('--dry-run', 'preview without writing')
     .option('--pretty')
     .action((opts) => {
-      if (!getAccount(opts.account)) throw new AppError('NOT_FOUND', `account ${opts.account} not found`)
+      if (!getAccount(opts.account))
+        throw new AppError('NOT_FOUND', `account ${opts.account} not found`)
       if (!['canonical', 'nubank'].includes(opts.format)) {
         throw new AppError('VALIDATION_ERROR', 'format must be canonical or nubank')
       }
 
       let rows: ImportRow[]
       const fileContent = (() => {
-        try { return fs.readFileSync(opts.file, 'utf8') }
-        catch { throw new AppError('VALIDATION_ERROR', `cannot read file: ${opts.file}`) }
+        try {
+          return fs.readFileSync(opts.file, 'utf8')
+        } catch {
+          throw new AppError('VALIDATION_ERROR', `cannot read file: ${opts.file}`)
+        }
       })()
 
       if (opts.format === 'nubank') {
         rows = parseNubank(fileContent)
       } else {
         let raw: unknown
-        try { raw = JSON.parse(fileContent) }
-        catch { throw new AppError('VALIDATION_ERROR', 'file must be valid JSON') }
+        try {
+          raw = JSON.parse(fileContent)
+        } catch {
+          throw new AppError('VALIDATION_ERROR', 'file must be valid JSON')
+        }
         if (!Array.isArray(raw)) throw new AppError('VALIDATION_ERROR', 'file must be a JSON array')
         rows = raw.map((item, i) => {
           const r = canonicalRowSchema.safeParse(item)
-          if (!r.success) throw new AppError('VALIDATION_ERROR', `row ${i}: ${r.error.issues[0].message}`)
+          if (!r.success)
+            throw new AppError('VALIDATION_ERROR', `row ${i}: ${r.error.issues[0].message}`)
           return r.data
         })
       }
 
-      const categoryIds = new Set(rows.map(r => r.categoryId).filter((v): v is string => !!v))
+      const categoryIds = new Set(rows.map((r) => r.categoryId).filter((v): v is string => !!v))
       for (const id of categoryIds) {
         if (!getCategory(id)) throw new AppError('NOT_FOUND', `category ${id} not found`)
       }
@@ -68,21 +80,29 @@ export function registerImports(program: Command): void {
       success(result)
     })
 
-  cmd.command('list')
+  cmd
+    .command('list')
     .option('--pretty')
     .action((opts) => {
       const list = listImports()
       if (isPretty(opts)) {
         prettyTable(
           ['id', 'filename', 'format', 'rows', 'created_at'],
-          list.map(i => [i.id, i.filename, i.format, i.rowCount, new Date(i.createdAt).toISOString()])
+          list.map((i) => [
+            i.id,
+            i.filename,
+            i.format,
+            i.rowCount,
+            new Date(i.createdAt).toISOString(),
+          ]),
         )
       } else {
         success(list)
       }
     })
 
-  cmd.command('delete')
+  cmd
+    .command('delete')
     .argument('<id>')
     .action((id) => {
       deleteImport(id)

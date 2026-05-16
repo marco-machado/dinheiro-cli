@@ -14,9 +14,8 @@ let _db: Db | null = null
 export function initDb(dbPath?: string): Db {
   const config = loadConfig()
   const xdgData = process.env.XDG_DATA_HOME ?? path.join(os.homedir(), '.local', 'share')
-  const defaultPath = process.env.DINHEIRO_DB
-    ?? config.db
-    ?? path.join(xdgData, 'dinheiro', 'db.sqlite')
+  const defaultPath =
+    process.env.DINHEIRO_DB ?? config.db ?? path.join(xdgData, 'dinheiro', 'db.sqlite')
 
   const resolved = dbPath ?? defaultPath
 

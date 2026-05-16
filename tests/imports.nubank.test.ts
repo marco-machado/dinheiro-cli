@@ -13,13 +13,13 @@ describe('nubank parser', () => {
 
   it('converts decimal BRL amounts to cents', () => {
     const rows = parseNubank(sample)
-    const ifood = rows.find(r => r.description === 'iFood')!
+    const ifood = rows.find((r) => r.description === 'iFood')!
     expect(ifood.amount).toBe(-4590)
   })
 
   it('maps positive amounts as income', () => {
     const rows = parseNubank(sample)
-    const payment = rows.find(r => r.description === 'Pagamento recebido')!
+    const payment = rows.find((r) => r.description === 'Pagamento recebido')!
     expect(payment.amount).toBe(50000)
   })
 

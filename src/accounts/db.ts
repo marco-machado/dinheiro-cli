@@ -36,13 +36,19 @@ export function listAccounts(): Account[] {
   return db.select().from(accounts).all() as Account[]
 }
 
-export function updateAccount(id: string, data: {
-  name?: string
-  closeDay?: number | null
-  dueDay?: number | null
-}): Account {
+export function updateAccount(
+  id: string,
+  data: {
+    name?: string
+    closeDay?: number | null
+    dueDay?: number | null
+  },
+): Account {
   const db = getDb()
-  db.update(accounts).set({ ...data, updatedAt: Date.now() }).where(eq(accounts.id, id)).run()
+  db.update(accounts)
+    .set({ ...data, updatedAt: Date.now() })
+    .where(eq(accounts.id, id))
+    .run()
   return getAccount(id)!
 }
 

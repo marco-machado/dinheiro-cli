@@ -6,7 +6,8 @@ import { createCategory, getCategory, listCategories, updateCategory, deleteCate
 export function registerCategories(program: Command): void {
   const cmd = program.command('categories')
 
-  cmd.command('create')
+  cmd
+    .command('create')
     .requiredOption('--name <str>', 'category name')
     .option('--pretty')
     .action((opts) => {
@@ -18,18 +19,23 @@ export function registerCategories(program: Command): void {
       }
     })
 
-  cmd.command('list')
+  cmd
+    .command('list')
     .option('--pretty')
     .action((opts) => {
       const list = listCategories()
       if (isPretty(opts)) {
-        prettyTable(['id', 'name'], list.map(c => [c.id, c.name]))
+        prettyTable(
+          ['id', 'name'],
+          list.map((c) => [c.id, c.name]),
+        )
       } else {
         success(list)
       }
     })
 
-  cmd.command('update')
+  cmd
+    .command('update')
     .argument('<id>')
     .requiredOption('--name <str>', 'new name')
     .action((id, opts) => {
@@ -37,7 +43,8 @@ export function registerCategories(program: Command): void {
       success(updateCategory(id, opts.name))
     })
 
-  cmd.command('delete')
+  cmd
+    .command('delete')
     .argument('<id>')
     .action((id) => {
       if (!getCategory(id)) throw new AppError('NOT_FOUND', `category ${id} not found`)

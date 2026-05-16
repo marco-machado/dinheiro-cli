@@ -1,10 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setupTestDb } from './helpers'
 import {
-  createCategory, getCategory, listCategories, updateCategory, deleteCategory
+  createCategory,
+  getCategory,
+  listCategories,
+  updateCategory,
+  deleteCategory,
 } from '../src/categories/db'
 
-beforeEach(() => { setupTestDb() })
+beforeEach(() => {
+  setupTestDb()
+})
 
 describe('categories', () => {
   it('creates a category', () => {

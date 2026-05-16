@@ -25,7 +25,12 @@ const canonicalRows = () => [
 
 describe('imports canonical', () => {
   it('inserts all rows and returns counts', () => {
-    const result = createImport({ accountId, format: 'canonical', filename: 'test.json', rows: canonicalRows() })
+    const result = createImport({
+      accountId,
+      format: 'canonical',
+      filename: 'test.json',
+      rows: canonicalRows(),
+    })
     expect(result.inserted).toBe(2)
     expect(result.skipped).toBe(0)
     expect(listTransactions({})).toHaveLength(2)
@@ -33,7 +38,12 @@ describe('imports canonical', () => {
 
   it('skips duplicate rows on reimport', () => {
     createImport({ accountId, format: 'canonical', filename: 'a.json', rows: canonicalRows() })
-    const result = createImport({ accountId, format: 'canonical', filename: 'a.json', rows: canonicalRows() })
+    const result = createImport({
+      accountId,
+      format: 'canonical',
+      filename: 'a.json',
+      rows: canonicalRows(),
+    })
     expect(result.inserted).toBe(0)
     expect(result.skipped).toBe(2)
   })
@@ -43,7 +53,9 @@ describe('imports canonical', () => {
       { amount: -1000, description: 'ok', occurredAt: '2026-05-01', categoryId },
       { amount: NaN, description: 'bad', occurredAt: 'bad-date', categoryId },
     ]
-    expect(() => createImport({ accountId, format: 'canonical', filename: 'bad.json', rows: badRows })).toThrow()
+    expect(() =>
+      createImport({ accountId, format: 'canonical', filename: 'bad.json', rows: badRows }),
+    ).toThrow()
     expect(listTransactions({})).toHaveLength(0)
     expect(listImports()).toHaveLength(0)
   })
@@ -57,14 +69,25 @@ describe('imports canonical', () => {
   })
 
   it('deletes import and its transactions atomically', () => {
-    const result = createImport({ accountId, format: 'canonical', filename: 'a.json', rows: canonicalRows() })
+    const result = createImport({
+      accountId,
+      format: 'canonical',
+      filename: 'a.json',
+      rows: canonicalRows(),
+    })
     deleteImport(result.importId)
     expect(listTransactions({})).toHaveLength(0)
     expect(listImports()).toHaveLength(0)
   })
 
   it('dry-run returns counts without writing', () => {
-    const result = createImport({ accountId, format: 'canonical', filename: 'a.json', rows: canonicalRows(), dryRun: true })
+    const result = createImport({
+      accountId,
+      format: 'canonical',
+      filename: 'a.json',
+      rows: canonicalRows(),
+      dryRun: true,
+    })
     expect(result.inserted).toBe(2)
     expect(listTransactions({})).toHaveLength(0)
   })

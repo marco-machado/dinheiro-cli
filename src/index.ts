@@ -45,7 +45,11 @@ async function main() {
     if (err instanceof CommanderError) {
       // Help/version are not errors — Commander throws them because of exitOverride().
       // Let them exit cleanly without emitting a JSON error envelope.
-      if (err.code === 'commander.helpDisplayed' || err.code === 'commander.version' || err.exitCode === 0) {
+      if (
+        err.code === 'commander.helpDisplayed' ||
+        err.code === 'commander.version' ||
+        err.exitCode === 0
+      ) {
         process.exit(0)
       }
       failure(err.message, 'VALIDATION_ERROR')

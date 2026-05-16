@@ -1,10 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setupTestDb } from './helpers'
 import {
-  createAccount, getAccount, listAccounts, updateAccount, deleteAccount
+  createAccount,
+  getAccount,
+  listAccounts,
+  updateAccount,
+  deleteAccount,
 } from '../src/accounts/db'
 
-beforeEach(() => { setupTestDb() })
+beforeEach(() => {
+  setupTestDb()
+})
 
 describe('accounts', () => {
   it('creates a checking account', () => {

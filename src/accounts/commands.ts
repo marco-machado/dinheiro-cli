@@ -6,7 +6,8 @@ import { createAccount, getAccount, listAccounts, updateAccount, deleteAccount }
 export function registerAccounts(program: Command): void {
   const cmd = program.command('accounts')
 
-  cmd.command('create')
+  cmd
+    .command('create')
     .requiredOption('--name <str>', 'account name')
     .requiredOption('--type <type>', 'checking or credit_card')
     .option('--close-day <n>', 'statement close day (credit_card only)', Number)
@@ -17,7 +18,10 @@ export function registerAccounts(program: Command): void {
         throw new AppError('VALIDATION_ERROR', 'type must be checking or credit_card')
       }
       if (opts.type === 'checking' && (opts.closeDay != null || opts.dueDay != null)) {
-        throw new AppError('VALIDATION_ERROR', 'close-day and due-day are only valid for credit_card accounts')
+        throw new AppError(
+          'VALIDATION_ERROR',
+          'close-day and due-day are only valid for credit_card accounts',
+        )
       }
       const account = createAccount({
         name: opts.name,
@@ -28,28 +32,30 @@ export function registerAccounts(program: Command): void {
       if (isPretty(opts)) {
         prettyTable(
           ['id', 'name', 'type', 'close_day', 'due_day'],
-          [[account.id, account.name, account.type, account.closeDay ?? '', account.dueDay ?? '']]
+          [[account.id, account.name, account.type, account.closeDay ?? '', account.dueDay ?? '']],
         )
       } else {
         success(account)
       }
     })
 
-  cmd.command('list')
+  cmd
+    .command('list')
     .option('--pretty', 'human-readable output')
     .action((opts) => {
       const list = listAccounts()
       if (isPretty(opts)) {
         prettyTable(
           ['id', 'name', 'type', 'close_day', 'due_day'],
-          list.map(a => [a.id, a.name, a.type, a.closeDay ?? '', a.dueDay ?? ''])
+          list.map((a) => [a.id, a.name, a.type, a.closeDay ?? '', a.dueDay ?? '']),
         )
       } else {
         success(list)
       }
     })
 
-  cmd.command('get')
+  cmd
+    .command('get')
     .argument('<id>')
     .option('--pretty', 'human-readable output')
     .action((id, opts) => {
@@ -58,14 +64,15 @@ export function registerAccounts(program: Command): void {
       if (isPretty(opts)) {
         prettyTable(
           ['id', 'name', 'type', 'close_day', 'due_day'],
-          [[account.id, account.name, account.type, account.closeDay ?? '', account.dueDay ?? '']]
+          [[account.id, account.name, account.type, account.closeDay ?? '', account.dueDay ?? '']],
         )
       } else {
         success(account)
       }
     })
 
-  cmd.command('update')
+  cmd
+    .command('update')
     .argument('<id>')
     .option('--name <str>', 'new name')
     .option('--close-day <n>', 'new close day', Number)
@@ -75,7 +82,10 @@ export function registerAccounts(program: Command): void {
       const existing = getAccount(id)
       if (!existing) throw new AppError('NOT_FOUND', `account ${id} not found`)
       if (existing.type === 'checking' && (opts.closeDay != null || opts.dueDay != null)) {
-        throw new AppError('VALIDATION_ERROR', 'close-day and due-day are only valid for credit_card accounts')
+        throw new AppError(
+          'VALIDATION_ERROR',
+          'close-day and due-day are only valid for credit_card accounts',
+        )
       }
       const updated = updateAccount(id, {
         name: opts.name,
@@ -85,7 +95,8 @@ export function registerAccounts(program: Command): void {
       success(updated)
     })
 
-  cmd.command('delete')
+  cmd
+    .command('delete')
     .argument('<id>')
     .action((id) => {
       if (!getAccount(id)) throw new AppError('NOT_FOUND', `account ${id} not found`)

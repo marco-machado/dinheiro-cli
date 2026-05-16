@@ -7,7 +7,10 @@ import { AppError } from '../errors'
 import type { Transaction, TransactionInput } from './types'
 
 export function computeRowHash(
-  accountId: string, occurredAt: string, amount: number, description: string
+  accountId: string,
+  occurredAt: string,
+  amount: number,
+  description: string,
 ): string {
   return crypto
     .createHash('sha256')
@@ -64,7 +67,8 @@ export function listTransactions(filters: ListFilters): Transaction[] {
   if (filters.categoryId) conditions.push(eq(transactions.categoryId, filters.categoryId))
   if (filters.from) conditions.push(gte(transactions.occurredAt, filters.from))
   if (filters.to) conditions.push(lte(transactions.occurredAt, filters.to))
-  if (filters.statementPeriod) conditions.push(eq(transactions.statementPeriod, filters.statementPeriod))
+  if (filters.statementPeriod)
+    conditions.push(eq(transactions.statementPeriod, filters.statementPeriod))
   if (filters.importBatch) conditions.push(eq(transactions.importBatchId, filters.importBatch))
   if (filters.search) conditions.push(like(transactions.description, `%${filters.search}%`))
 
@@ -75,18 +79,25 @@ export function listTransactions(filters: ListFilters): Transaction[] {
   return q.all().map(toTransaction)
 }
 
-export function updateTransaction(id: string, data: {
-  amount?: number
-  description?: string
-  categoryId?: string
-  occurredAt?: string
-  statementPeriod?: string
-}): Transaction {
+export function updateTransaction(
+  id: string,
+  data: {
+    amount?: number
+    description?: string
+    categoryId?: string
+    occurredAt?: string
+    statementPeriod?: string
+  },
+): Transaction {
   const db = getDb()
   const existing = getTransaction(id)
   if (!existing) throw new AppError('NOT_FOUND', `transaction ${id} not found`)
-  if (existing.transferId) throw new AppError('CONFLICT', 'cannot update a transfer row directly; use transfers delete')
-  db.update(transactions).set({ ...data, updatedAt: Date.now() }).where(eq(transactions.id, id)).run()
+  if (existing.transferId)
+    throw new AppError('CONFLICT', 'cannot update a transfer row directly; use transfers delete')
+  db.update(transactions)
+    .set({ ...data, updatedAt: Date.now() })
+    .where(eq(transactions.id, id))
+    .run()
   return getTransaction(id)!
 }
 
@@ -94,13 +105,15 @@ export function deleteTransaction(id: string): void {
   const db = getDb()
   const existing = getTransaction(id)
   if (!existing) throw new AppError('NOT_FOUND', `transaction ${id} not found`)
-  if (existing.transferId) throw new AppError('CONFLICT', 'cannot delete a transfer row directly; use transfers delete')
+  if (existing.transferId)
+    throw new AppError('CONFLICT', 'cannot delete a transfer row directly; use transfers delete')
   db.delete(transactions).where(eq(transactions.id, id)).run()
 }
 
-export function batchCreateTransactions(
-  rows: TransactionInput[]
-): { inserted: number; skipped: number } {
+export function batchCreateTransactions(rows: TransactionInput[]): {
+  inserted: number
+  skipped: number
+} {
   const db = getDb()
   let inserted = 0
   let skipped = 0
@@ -110,11 +123,15 @@ export function batchCreateTransactions(
   const runBatch = sqlite.transaction(() => {
     for (const row of rows) {
       const hash = computeRowHash(row.accountId, row.occurredAt, row.amount, row.description)
-      const existing = db.select({ id: transactions.id })
+      const existing = db
+        .select({ id: transactions.id })
         .from(transactions)
         .where(eq(transactions.rowHash, hash))
         .get()
-      if (existing) { skipped++; continue }
+      if (existing) {
+        skipped++
+        continue
+      }
       createTransaction({ ...row, rowHash: hash })
       inserted++
     }

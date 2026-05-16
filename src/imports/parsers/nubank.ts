@@ -28,10 +28,14 @@ function parseCsvLine(line: string): string[] {
 }
 
 export function parseNubank(csvContent: string): ImportRow[] {
-  const lines = csvContent.trim().split('\n').map(l => l.trim()).filter(Boolean)
+  const lines = csvContent
+    .trim()
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
   if (lines.length === 0) return []
 
-  const headers = parseCsvLine(lines[0]).map(h => h.trim())
+  const headers = parseCsvLine(lines[0]).map((h) => h.trim())
   for (const required of REQUIRED_HEADERS) {
     if (!headers.includes(required)) {
       throw new AppError('VALIDATION_ERROR', `Nubank CSV missing required column: ${required}`)
@@ -46,7 +50,7 @@ export function parseNubank(csvContent: string): ImportRow[] {
   }
 
   return lines.slice(1).map((line, i) => {
-    const cols = parseCsvLine(line).map(c => c.trim())
+    const cols = parseCsvLine(line).map((c) => c.trim())
     const dateStr = cols[idx.date]
     const title = cols[idx.title]
     const valueStr = cols[idx.value]
@@ -60,7 +64,10 @@ export function parseNubank(csvContent: string): ImportRow[] {
 
     const valueFloat = parseFloat(valueStr)
     if (isNaN(valueFloat)) {
-      throw new AppError('VALIDATION_ERROR', `Nubank CSV row ${i + 2}: invalid amount "${valueStr}"`)
+      throw new AppError(
+        'VALIDATION_ERROR',
+        `Nubank CSV row ${i + 2}: invalid amount "${valueStr}"`,
+      )
     }
 
     const amount = Math.round(valueFloat * 100)

@@ -55,16 +55,25 @@ export function listTransfers(filters: TransferFilters): TransferResult[] {
   if (filters.from) conditions.push(gte(transactions.occurredAt, filters.from))
   if (filters.to) conditions.push(lte(transactions.occurredAt, filters.to))
 
-  const rows = db.select().from(transactions).where(and(...conditions)).all()
+  const rows = db
+    .select()
+    .from(transactions)
+    .where(and(...conditions))
+    .all()
 
   const seen = new Map<string, TransferResult>()
   for (const row of rows) {
     if (!row.transferId || seen.has(row.transferId)) continue
-    const pair = rows.filter(r => r.transferId === row.transferId)
-    const outRow = pair.find(r => r.amount < 0)
-    const inRow = pair.find(r => r.amount > 0)
+    const pair = rows.filter((r) => r.transferId === row.transferId)
+    const outRow = pair.find((r) => r.amount < 0)
+    const inRow = pair.find((r) => r.amount > 0)
     if (!outRow || !inRow) continue
-    if (filters.accountId && outRow.accountId !== filters.accountId && inRow.accountId !== filters.accountId) continue
+    if (
+      filters.accountId &&
+      outRow.accountId !== filters.accountId &&
+      inRow.accountId !== filters.accountId
+    )
+      continue
     seen.set(row.transferId, {
       transferId: row.transferId,
       fromAccountId: outRow.accountId,

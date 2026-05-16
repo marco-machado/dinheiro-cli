@@ -24,8 +24,11 @@ export function createImport(data: {
   if (data.dryRun) {
     for (const row of data.rows) {
       const hash = computeRowHash(data.accountId, row.occurredAt, row.amount, row.description)
-      const exists = db.select({ id: transactions.id }).from(transactions)
-        .where(eq(transactions.rowHash, hash)).get()
+      const exists = db
+        .select({ id: transactions.id })
+        .from(transactions)
+        .where(eq(transactions.rowHash, hash))
+        .get()
       exists ? skipped++ : inserted++
     }
     return { importId, inserted, skipped }
@@ -33,24 +36,32 @@ export function createImport(data: {
 
   sqlite.transaction(() => {
     const now = Date.now()
-    db.insert(imports).values({
-      id: importId,
-      accountId: data.accountId,
-      format: data.format,
-      filename: data.filename,
-      rowCount: 0,
-      createdAt: now,
-      updatedAt: now,
-    }).run()
+    db.insert(imports)
+      .values({
+        id: importId,
+        accountId: data.accountId,
+        format: data.format,
+        filename: data.filename,
+        rowCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run()
 
     for (const row of data.rows) {
       if (!Number.isInteger(row.amount)) {
         throw new AppError('VALIDATION_ERROR', `invalid amount: ${row.amount}`)
       }
       const hash = computeRowHash(data.accountId, row.occurredAt, row.amount, row.description)
-      const exists = db.select({ id: transactions.id }).from(transactions)
-        .where(eq(transactions.rowHash, hash)).get()
-      if (exists) { skipped++; continue }
+      const exists = db
+        .select({ id: transactions.id })
+        .from(transactions)
+        .where(eq(transactions.rowHash, hash))
+        .get()
+      if (exists) {
+        skipped++
+        continue
+      }
       createTransaction({
         accountId: data.accountId,
         amount: row.amount,
@@ -64,7 +75,10 @@ export function createImport(data: {
       inserted++
     }
 
-    db.update(imports).set({ rowCount: inserted, updatedAt: Date.now() }).where(eq(imports.id, importId)).run()
+    db.update(imports)
+      .set({ rowCount: inserted, updatedAt: Date.now() })
+      .where(eq(imports.id, importId))
+      .run()
   })()
 
   return { importId, inserted, skipped }

@@ -7,7 +7,8 @@ import { createTransfer, listTransfers, deleteTransfer } from './db'
 export function registerTransfers(program: Command): void {
   const cmd = program.command('transfers')
 
-  cmd.command('create')
+  cmd
+    .command('create')
     .requiredOption('--from <account-id>')
     .requiredOption('--to <account-id>')
     .requiredOption('--amount <n>', 'positive amount in cents', Number)
@@ -15,7 +16,8 @@ export function registerTransfers(program: Command): void {
     .option('--description <str>')
     .option('--pretty')
     .action((opts) => {
-      if (opts.amount <= 0) throw new AppError('VALIDATION_ERROR', 'amount must be a positive integer')
+      if (opts.amount <= 0)
+        throw new AppError('VALIDATION_ERROR', 'amount must be a positive integer')
       if (!getAccount(opts.from)) throw new AppError('NOT_FOUND', `account ${opts.from} not found`)
       if (!getAccount(opts.to)) throw new AppError('NOT_FOUND', `account ${opts.to} not found`)
       const result = createTransfer({
@@ -28,7 +30,8 @@ export function registerTransfers(program: Command): void {
       success(result)
     })
 
-  cmd.command('list')
+  cmd
+    .command('list')
     .option('--account <id>')
     .option('--from <date>')
     .option('--to <date>')
@@ -38,14 +41,15 @@ export function registerTransfers(program: Command): void {
       if (isPretty(opts)) {
         prettyTable(
           ['transfer_id', 'from', 'to', 'amount', 'date'],
-          list.map(t => [t.transferId, t.fromAccountId, t.toAccountId, t.amount, t.occurredAt])
+          list.map((t) => [t.transferId, t.fromAccountId, t.toAccountId, t.amount, t.occurredAt]),
         )
       } else {
         success(list)
       }
     })
 
-  cmd.command('delete')
+  cmd
+    .command('delete')
     .argument('<transfer-id>')
     .action((transferId) => {
       deleteTransfer(transferId)

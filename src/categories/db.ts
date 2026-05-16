@@ -31,7 +31,8 @@ export function updateCategory(id: string, name: string): Category {
 
 export function deleteCategory(id: string): void {
   const db = getDb()
-  const used = db.select({ id: transactions.id })
+  const used = db
+    .select({ id: transactions.id })
     .from(transactions)
     .where(eq(transactions.categoryId, id))
     .get()

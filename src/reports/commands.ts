@@ -11,7 +11,8 @@ function currentMonth(): string {
 export function registerReports(program: Command): void {
   const cmd = program.command('reports')
 
-  cmd.command('monthly')
+  cmd
+    .command('monthly')
     .option('--month <YYYY-MM>')
     .option('--account <id>')
     .option('--pretty')
@@ -31,7 +32,7 @@ export function registerReports(program: Command): void {
           console.log('')
           prettyTable(
             ['category', 'total', 'pct%'],
-            report.by_category.map(c => [c.category, c.total, c.pct])
+            report.by_category.map((c) => [c.category, c.total, c.pct]),
           )
         }
       } else {
@@ -39,17 +40,19 @@ export function registerReports(program: Command): void {
       }
     })
 
-  cmd.command('statement')
+  cmd
+    .command('statement')
     .requiredOption('--account <id>')
     .requiredOption('--period <YYYY-MM>')
     .option('--pretty')
     .action((opts) => {
-      if (!getAccount(opts.account)) throw new AppError('NOT_FOUND', `account ${opts.account} not found`)
+      if (!getAccount(opts.account))
+        throw new AppError('NOT_FOUND', `account ${opts.account} not found`)
       const rows = getStatementReport(opts.account, opts.period)
       if (isPretty(opts)) {
         prettyTable(
           ['id', 'amount', 'description', 'occurred_at'],
-          rows.map(t => [t.id, t.amount, t.description, t.occurredAt])
+          rows.map((t) => [t.id, t.amount, t.description, t.occurredAt]),
         )
       } else {
         success(rows)

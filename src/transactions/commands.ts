@@ -6,19 +6,26 @@ import { success, isPretty, prettyTable } from '../output'
 import { getAccount } from '../accounts/db'
 import { getCategory } from '../categories/db'
 import {
-  createTransaction, getTransaction, listTransactions,
-  updateTransaction, deleteTransaction, batchCreateTransactions,
+  createTransaction,
+  getTransaction,
+  listTransactions,
+  updateTransaction,
+  deleteTransaction,
+  batchCreateTransactions,
 } from './db'
 
 const occurredAtRe = /^\d{4}-\d{2}-\d{2}$/
 const periodRe = /^\d{4}-\d{2}$/
 
-function validateInput(accountId: string, opts: {
-  categoryId?: string
-  statementPeriod?: string
-  occurredAt: string
-  transferId?: string
-}) {
+function validateInput(
+  accountId: string,
+  opts: {
+    categoryId?: string
+    statementPeriod?: string
+    occurredAt: string
+    transferId?: string
+  },
+) {
   if (!occurredAtRe.test(opts.occurredAt)) {
     throw new AppError('VALIDATION_ERROR', 'occurred-at must be YYYY-MM-DD')
   }
@@ -29,10 +36,16 @@ function validateInput(accountId: string, opts: {
     throw new AppError('VALIDATION_ERROR', 'statement-period must be YYYY-MM')
   }
   if (account.type === 'credit_card' && !opts.transferId && !opts.statementPeriod) {
-    throw new AppError('VALIDATION_ERROR', 'statement-period is required for credit_card transactions')
+    throw new AppError(
+      'VALIDATION_ERROR',
+      'statement-period is required for credit_card transactions',
+    )
   }
   if (account.type === 'checking' && opts.statementPeriod) {
-    throw new AppError('VALIDATION_ERROR', 'statement-period is only valid for credit_card accounts')
+    throw new AppError(
+      'VALIDATION_ERROR',
+      'statement-period is only valid for credit_card accounts',
+    )
   }
   if (!opts.transferId && !opts.categoryId) {
     throw new AppError('VALIDATION_ERROR', 'category is required for non-transfer transactions')
@@ -54,7 +67,8 @@ const batchRowSchema = z.object({
 export function registerTransactions(program: Command): void {
   const cmd = program.command('transactions')
 
-  cmd.command('create')
+  cmd
+    .command('create')
     .requiredOption('--account <id>')
     .requiredOption('--amount <n>', 'amount in cents (signed)', Number)
     .requiredOption('--description <str>')
@@ -79,7 +93,8 @@ export function registerTransactions(program: Command): void {
       success(t)
     })
 
-  cmd.command('list')
+  cmd
+    .command('list')
     .option('--account <id>')
     .option('--category <id>')
     .option('--from <date>')
@@ -103,14 +118,22 @@ export function registerTransactions(program: Command): void {
       if (isPretty(opts)) {
         prettyTable(
           ['id', 'account', 'amount', 'description', 'occurred_at', 'category'],
-          list.map(t => [t.id, t.accountId, t.amount, t.description, t.occurredAt, t.categoryId ?? ''])
+          list.map((t) => [
+            t.id,
+            t.accountId,
+            t.amount,
+            t.description,
+            t.occurredAt,
+            t.categoryId ?? '',
+          ]),
         )
       } else {
         success(list)
       }
     })
 
-  cmd.command('get')
+  cmd
+    .command('get')
     .argument('<id>')
     .option('--pretty')
     .action((id, _opts) => {
@@ -119,7 +142,8 @@ export function registerTransactions(program: Command): void {
       success(t)
     })
 
-  cmd.command('update')
+  cmd
+    .command('update')
     .argument('<id>')
     .option('--amount <n>', 'amount in cents', Number)
     .option('--description <str>')
@@ -146,14 +170,16 @@ export function registerTransactions(program: Command): void {
       success(updated)
     })
 
-  cmd.command('delete')
+  cmd
+    .command('delete')
     .argument('<id>')
     .action((id) => {
       deleteTransaction(id)
       success({ id, deleted: true })
     })
 
-  cmd.command('batch-create')
+  cmd
+    .command('batch-create')
     .requiredOption('--file <path>')
     .action((opts) => {
       let raw: unknown
@@ -162,7 +188,8 @@ export function registerTransactions(program: Command): void {
       } catch {
         throw new AppError('VALIDATION_ERROR', `could not read or parse file: ${opts.file}`)
       }
-      if (!Array.isArray(raw)) throw new AppError('VALIDATION_ERROR', 'file must contain a JSON array')
+      if (!Array.isArray(raw))
+        throw new AppError('VALIDATION_ERROR', 'file must contain a JSON array')
       const rows = raw.map((item, i) => {
         const parsed = batchRowSchema.safeParse(item)
         if (!parsed.success) {
@@ -170,11 +197,11 @@ export function registerTransactions(program: Command): void {
         }
         return parsed.data
       })
-      const accountIds = new Set(rows.map(r => r.accountId))
+      const accountIds = new Set(rows.map((r) => r.accountId))
       for (const id of accountIds) {
         if (!getAccount(id)) throw new AppError('NOT_FOUND', `account ${id} not found`)
       }
-      const categoryIds = new Set(rows.map(r => r.categoryId).filter((v): v is string => !!v))
+      const categoryIds = new Set(rows.map((r) => r.categoryId).filter((v): v is string => !!v))
       for (const id of categoryIds) {
         if (!getCategory(id)) throw new AppError('NOT_FOUND', `category ${id} not found`)
       }
