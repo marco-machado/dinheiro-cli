@@ -10,8 +10,15 @@ import os from 'os'
 type Db = BetterSQLite3Database<typeof schema>
 
 let _db: Db | null = null
+let _sqlite: Database.Database | null = null
 
 export function initDb(dbPath?: string): Db {
+  if (_sqlite) {
+    _sqlite.close()
+    _sqlite = null
+    _db = null
+  }
+
   const config = loadConfig()
   const xdgData = process.env.XDG_DATA_HOME ?? path.join(os.homedir(), '.local', 'share')
   const defaultPath =
@@ -30,6 +37,7 @@ export function initDb(dbPath?: string): Db {
   const db = drizzle(sqlite, { schema })
   migrate(db, { migrationsFolder: path.resolve(__dirname, '../migrations') })
 
+  _sqlite = sqlite
   _db = db
   return db
 }
@@ -37,6 +45,14 @@ export function initDb(dbPath?: string): Db {
 export function getDb(): Db {
   if (!_db) throw new Error('DB not initialized. Call initDb() first.')
   return _db
+}
+
+export function closeDb(): void {
+  if (_sqlite) {
+    _sqlite.close()
+    _sqlite = null
+    _db = null
+  }
 }
 
 export function rawSqlite(db: Db): Database.Database {
