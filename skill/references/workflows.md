@@ -1,5 +1,25 @@
 # Workflow Recipes
 
+## Initial setup
+
+Run once against a fresh database, before logging any transactions.
+
+```bash
+# Create a checking account
+dinheiro accounts create --name "Checking" --type checking
+
+# Create a credit card account — close-day / due-day come from the statement
+dinheiro accounts create --name "Nubank" --type credit_card --close-day 3 --due-day 10
+```
+
+Create the categories the user wants — repeat `categories create` once per category:
+
+```bash
+dinheiro categories create --name "Groceries"
+```
+
+If the user has no preference, use this default set: **Housing, Groceries, Dining, Transportation, Utilities, Healthcare, Shopping, Entertainment, Salary**.
+
 ## Log a single expense
 
 ```bash
