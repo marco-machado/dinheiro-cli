@@ -16,6 +16,10 @@ dinheiro <noun> <verb> [args] [flags]
 
 All commands output JSON to stdout by default (exit 0). Errors are JSON to stderr (exit non-zero). Add `--pretty` to any command for human-readable tables.
 
+## Command reference
+
+Every command, flag, and default lives in [references/commands.md](references/commands.md).
+
 ## Output envelopes
 
 Success:
@@ -35,10 +39,6 @@ Error:
 - **Statement period:** YYYY-MM string. **Required** for all credit_card transactions. Caller-supplied — read it from the bank statement.
 - **Transfers:** pay a credit card bill with `transfers create`. Creates two linked rows. Never edit transfer rows directly via `transactions update/delete`.
 - **Import dedup:** re-importing the same file is safe — duplicate rows are skipped (same account + date + amount + description).
-
-## Full command reference
-
-See [references/commands.md](references/commands.md)
 
 ## Workflow recipes
 
