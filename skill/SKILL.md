@@ -1,18 +1,12 @@
 ---
 name: dinheiro
 description: Personal finance CLI. Manage accounts, transactions, categories, transfers, and reports via `dinheiro <noun> <verb>`. Use for logging expenses, importing bank statements, reconciling credit card bills, and generating monthly summaries.
-compatibility: Requires Node 24+. Run `dinheiro --help` to verify installation.
+compatibility: Requires Node 24+.
 ---
 
 # dinheiro
 
 Personal finance CLI driven by AI agents.
-
-## Installation check
-
-```bash
-dinheiro --help
-```
 
 ## Command shape
 
@@ -21,6 +15,10 @@ dinheiro <noun> <verb> [args] [flags]
 ```
 
 All commands output JSON to stdout by default (exit 0). Errors are JSON to stderr (exit non-zero). Add `--pretty` to any command for human-readable tables.
+
+## Command reference
+
+Every command, flag, and default lives in [references/commands.md](references/commands.md).
 
 ## Output envelopes
 
@@ -34,6 +32,14 @@ Error:
 { "ok": false, "error": "<message>", "code": "VALIDATION_ERROR|NOT_FOUND|CONFLICT|DB_ERROR" }
 ```
 
+## First-time setup
+
+Before logging transactions, run `dinheiro accounts list`. If `data` is empty, this is a fresh database — set it up before continuing.
+
+**Accounts — required.** No transaction can exist without an account. Ask the user for their real accounts: name, type (`checking` or `credit_card`), and for credit cards the `close_day` / `due_day` from their statement. Don't guess these. If the user wants to start immediately, fall back to creating one checking account named "Checking".
+
+**Categories — strongly recommended.** A transaction _can_ be created without a category, but `reports monthly` groups spending by category — uncategorized transactions collapse into one "(uncategorized)" bucket and lose all analytical value. Treat categorizing as the default. Ask the user up front which categories they want; if they have no preference, offer the default set in [workflow recipes](references/workflows.md). When logging a transaction, always assign a category — create one if no fit exists. Also offer to create a category when importing a statement surfaces a recurring merchant with no home.
+
 ## Key concepts
 
 - **Amounts:** signed integers in cents. Negative = expense/outflow. Positive = income/inflow.
@@ -42,10 +48,6 @@ Error:
 - **Transfers:** pay a credit card bill with `transfers create`. Creates two linked rows. Never edit transfer rows directly via `transactions update/delete`.
 - **Import dedup:** re-importing the same file is safe — duplicate rows are skipped (same account + date + amount + description).
 
-## Full command reference
-
-See [references/commands.md](references/commands.md)
-
 ## Workflow recipes
 
-See [references/workflows.md](references/workflows.md)
+See [workflow recipes](references/workflows.md)
