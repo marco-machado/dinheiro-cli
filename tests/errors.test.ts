@@ -48,10 +48,10 @@ describe('mapSqliteError', () => {
     expect(result!.code).toBe('CONFLICT')
   })
 
-  it('maps SQLITE_CONSTRAINT_FOREIGNKEY to CONFLICT', () => {
+  it('maps SQLITE_CONSTRAINT_FOREIGNKEY to VALIDATION_ERROR', () => {
     const e = sqliteErr('SQLITE_CONSTRAINT_FOREIGNKEY', 'FOREIGN KEY constraint failed')
     const result = mapSqliteError(e)
-    expect(result!.code).toBe('CONFLICT')
+    expect(result!.code).toBe('VALIDATION_ERROR')
     expect(result!.message).toBe('FOREIGN KEY constraint failed')
   })
 

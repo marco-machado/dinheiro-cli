@@ -21,11 +21,11 @@ export function mapSqliteError(err: unknown): AppError | null {
     return new AppError('CONFLICT', msg)
   }
 
-  if (code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
-    return new AppError('CONFLICT', err.message)
-  }
-
-  if (code === 'SQLITE_CONSTRAINT_NOTNULL' || code === 'SQLITE_CONSTRAINT_CHECK') {
+  if (
+    code === 'SQLITE_CONSTRAINT_FOREIGNKEY' ||
+    code === 'SQLITE_CONSTRAINT_NOTNULL' ||
+    code === 'SQLITE_CONSTRAINT_CHECK'
+  ) {
     return new AppError('VALIDATION_ERROR', err.message)
   }
 
