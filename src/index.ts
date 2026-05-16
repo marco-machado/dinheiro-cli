@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 import { Command, CommanderError } from 'commander'
-import { AppError } from './errors'
+import { AppError, mapSqliteError } from './errors'
 import { failure } from './output'
-import { initDb } from './db'
+import { initDb, closeDb } from './db'
 import { registerAccounts } from './accounts/commands'
 import { registerCategories } from './categories/commands'
 import { registerTransactions } from './transactions/commands'
 import { registerTransfers } from './transfers/commands'
 import { registerReports } from './reports/commands'
 import { registerImports } from './imports/commands'
+
+process.on('exit', () => closeDb())
 
 const program = new Command()
 
@@ -53,6 +55,11 @@ async function main() {
         process.exit(0)
       }
       failure(err.message, 'VALIDATION_ERROR')
+      process.exit(1)
+    }
+    const mapped = mapSqliteError(err)
+    if (mapped) {
+      failure(mapped.message, mapped.code)
       process.exit(1)
     }
     failure(err instanceof Error ? err.message : String(err), 'INTERNAL')

@@ -54,4 +54,17 @@ describe('accounts', () => {
     deleteAccount(a.id)
     expect(getAccount(a.id)).toBeUndefined()
   })
+
+  it('throws a SQLite unique constraint error on duplicate name', () => {
+    createAccount({ name: 'Duplicate', type: 'checking' })
+    let thrown: unknown
+    try {
+      createAccount({ name: 'Duplicate', type: 'checking' })
+    } catch (e) {
+      thrown = e
+    }
+    expect(thrown).toBeInstanceOf(Error)
+    const err = thrown as Error & { code?: string }
+    expect(err.code).toBe('SQLITE_CONSTRAINT_UNIQUE')
+  })
 })
