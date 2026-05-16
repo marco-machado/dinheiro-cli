@@ -95,7 +95,7 @@ dinheiro --help
 Dinheiro stores everything in a single SQLite file. Override the default location with:
 
 ```bash
-export DINHEIRO_DB="$HOME/.local/share/dinheiro/dinheiro.db"
+export DINHEIRO_DB="$HOME/.local/share/dinheiro/db.sqlite"
 ```
 
 Initialize the schema:

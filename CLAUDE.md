@@ -41,6 +41,17 @@ Every command emits a JSON envelope: `{ ok: true, data }` on success, `{ ok: fal
 - `DINHEIRO_DB` overrides the database path (default: `$XDG_DATA_HOME/dinheiro/db.sqlite` or `~/.local/share/dinheiro/db.sqlite`).
 - `program.exitOverride()` is in use — help/version surface as `CommanderError` and must exit 0 without a JSON error envelope.
 
+## Environment variables
+
+| Variable          | Effect                                                                         |
+| ----------------- | ------------------------------------------------------------------------------ |
+| `DINHEIRO_DB`     | SQLite DB file path. Highest precedence. `:memory:` → ephemeral in-memory DB. |
+| `DINHEIRO_CONFIG` | Config JSON path. Default `$XDG_CONFIG_HOME/dinheiro/config.json`.            |
+| `XDG_DATA_HOME`   | Base dir for the default DB path. Default `~/.local/share`.                   |
+| `XDG_CONFIG_HOME` | Base dir for the default config path. Default `~/.config`.                    |
+
+DB-path precedence: `DINHEIRO_DB` > config file `db` field > `$XDG_DATA_HOME/dinheiro/db.sqlite`.
+
 ## Git workflow
 
 Work on feature branches and open PRs to `main`. Commit messages are conventional-commit, **subject line only** — no body (`feat:`, `fix:`, `docs:`, `chore:`, etc.).
