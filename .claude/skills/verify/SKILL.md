@@ -1,21 +1,32 @@
 ---
 name: verify
-description: Verify a change to dinheiro-cli is sound before declaring it done — runs the test suite and a TypeScript build, and reports pass/fail with output. Use after implementing a feature or bugfix, or when the user runs /verify.
+description: Verify a change to dinheiro-cli is sound before declaring it done — runs format check, lint, build, and tests, and reports pass/fail with output. Use after implementing a feature or bugfix, or when the user runs /verify.
 ---
 
-Run the project's verification gate and report results. Do not claim success without showing the command output.
+Run the project's verification gate and report results. These are the same checks CI and the pre-commit hook enforce — running them here catches failures early. Do not claim success without showing the command output.
 
 ## Steps
 
-1. Run the test suite:
+Run in order, cheapest first:
+
+1. Check formatting:
    ```
-   npm test
+   npm run format:check
    ```
-2. Run the TypeScript build:
+   If it fails, run `npm run format` to fix, then continue.
+2. Lint:
+   ```
+   npm run lint
+   ```
+3. Build:
    ```
    npm run build
    ```
-3. If `src/schema/` was changed in this session, also confirm migrations are current:
+4. Run the test suite:
+   ```
+   npm test
+   ```
+5. If `src/schema/` was changed in this session, also confirm migrations are current:
    ```
    npm run db:generate
    ```

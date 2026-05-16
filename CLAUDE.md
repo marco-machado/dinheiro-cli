@@ -11,13 +11,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run dev -- <args>` — run the CLI without building (tsx)
 - `npm run build` — compile TypeScript to `dist/`
 - `npm test` — run the Vitest suite (single-shot)
+- `npm run lint` — ESLint over `src` and `tests`
+- `npm run format` — Prettier write; `npm run format:check` verifies without writing
 - `npm run db:generate` — generate a migration after editing `src/schema/`
 - `npm run db:migrate` — apply pending migrations
 - `./test-workflow.sh` — bash integration tests against the compiled CLI
 
 Run a single test file: `npx vitest run tests/transactions.test.ts`
 
-Before considering a change done, run `npm test` and `npm run build`.
+Before considering a change done, run `npm run format:check`, `npm run lint`, `npm run build`, and `npm test` (or just `/verify`). The pre-commit hook blocks commits that fail `format:check` or `lint`; CI runs all four.
 
 ## Output contract
 
