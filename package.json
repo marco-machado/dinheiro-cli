@@ -8,6 +8,10 @@
   "engines": {
     "node": ">=24"
   },
+  "files": [
+    "dist",
+    "migrations"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
@@ -17,7 +21,9 @@
     "lint": "eslint src tests",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "prepare": "husky"
+    "prepare": "husky",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run format:check && npm run lint && npm test"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",
