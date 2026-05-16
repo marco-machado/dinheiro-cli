@@ -32,6 +32,14 @@ Error:
 { "ok": false, "error": "<message>", "code": "VALIDATION_ERROR|NOT_FOUND|CONFLICT|DB_ERROR" }
 ```
 
+## First-time setup
+
+Before logging transactions, run `dinheiro accounts list`. If `data` is empty, this is a fresh database — set it up before continuing.
+
+**Accounts — required.** No transaction can exist without an account. Ask the user for their real accounts: name, type (`checking` or `credit_card`), and for credit cards the `close_day` / `due_day` from their statement. Don't guess these. If the user wants to start immediately, fall back to creating one checking account named "Checking".
+
+**Categories — strongly recommended.** A transaction _can_ be created without a category, but `reports monthly` groups spending by category — uncategorized transactions collapse into one "(uncategorized)" bucket and lose all analytical value. Treat categorizing as the default. Ask the user up front which categories they want; if they have no preference, offer the default set in [workflow recipes](references/workflows.md). When logging a transaction, always assign a category — create one if no fit exists. Also offer to create a category when importing a statement surfaces a recurring merchant with no home.
+
 ## Key concepts
 
 - **Amounts:** signed integers in cents. Negative = expense/outflow. Positive = income/inflow.
@@ -42,4 +50,4 @@ Error:
 
 ## Workflow recipes
 
-See [references/workflows.md](references/workflows.md)
+See [workflow recipes](references/workflows.md)
