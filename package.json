@@ -16,7 +16,8 @@
     "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
     "lint": "eslint src tests",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "prepare": "husky"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",
@@ -32,6 +33,7 @@
     "@types/node": "^22.0.0",
     "drizzle-kit": "^0.31.0",
     "eslint": "^10.4.0",
+    "husky": "^9.1.7",
     "prettier": "3.8.3",
     "tsx": "^4.0.0",
     "typescript": "^5.5.0",
