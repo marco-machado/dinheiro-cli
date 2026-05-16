@@ -1,18 +1,12 @@
 ---
 name: dinheiro
 description: Personal finance CLI. Manage accounts, transactions, categories, transfers, and reports via `dinheiro <noun> <verb>`. Use for logging expenses, importing bank statements, reconciling credit card bills, and generating monthly summaries.
-compatibility: Requires Node 24+. Run `dinheiro --help` to verify installation.
+compatibility: Requires Node 24+.
 ---
 
 # dinheiro
 
 Personal finance CLI driven by AI agents.
-
-## Installation check
-
-```bash
-dinheiro --help
-```
 
 ## Command shape
 
