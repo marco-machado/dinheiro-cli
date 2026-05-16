@@ -5,6 +5,9 @@
   "bin": {
     "dinheiro": "./dist/index.js"
   },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
