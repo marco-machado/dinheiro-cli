@@ -77,11 +77,7 @@ CATEGORY     AMOUNT     %
 Requires **Node.js 24+**.
 
 ```bash
-git clone https://github.com/marcomachado/dinheiro-cli.git
-cd dinheiro-cli
-npm install
-npm run build
-npm link            # exposes the `dinheiro` binary globally
+npm install -g @marco-machado/dinheiro-cli
 ```
 
 Verify:
@@ -89,6 +85,17 @@ Verify:
 ```bash
 dinheiro --help
 ```
+
+The package is also published to GitHub Packages. To install from there, point
+the scope at the GitHub registry in your `~/.npmrc` (a [GitHub PAT](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry#authenticating-to-github-packages)
+with `read:packages` is required, even for public packages):
+
+```
+@marco-machado:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
+```
+
+npmjs.com is the canonical channel; GitHub Packages is a mirror.
 
 ## Configuration
 
@@ -197,6 +204,16 @@ The [`skill/`](skill) directory follows the [agentskills.io](https://agentskills
 Designed primarily for Claude Code and similar tool-using agents, but it's a plain CLI — any agent that can spawn a subprocess can drive it.
 
 ## Development
+
+Clone the repo and link the binary for local development:
+
+```bash
+git clone https://github.com/marco-machado/dinheiro-cli.git
+cd dinheiro-cli
+npm install
+npm run build
+npm link            # exposes the `dinheiro` binary globally
+```
 
 ```bash
 npm run dev          # run the CLI via tsx without building
