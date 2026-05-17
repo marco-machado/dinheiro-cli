@@ -90,7 +90,7 @@ The package is also published to GitHub Packages. To install from there, point
 the scope at the GitHub registry in your `~/.npmrc` (a [GitHub PAT](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry#authenticating-to-github-packages)
 with `read:packages` is required, even for public packages):
 
-```
+```ini
 @marco-machado:registry=https://npm.pkg.github.com
 //npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
 ```
