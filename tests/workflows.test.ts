@@ -63,7 +63,10 @@ describe('claude-code-review.yml', () => {
     const onBlock: string[] = []
     let inOnBlock = false
     for (const line of lines) {
-      if (/^on:/.test(line)) { inOnBlock = true; continue }
+      if (/^on:/.test(line)) {
+        inOnBlock = true
+        continue
+      }
       if (inOnBlock && /^\S/.test(line) && !/^\s/.test(line)) break
       if (inOnBlock) onBlock.push(line)
     }
@@ -107,9 +110,7 @@ describe('claude-code-review.yml', () => {
   })
 
   it('uses a pinned SHA for actions/checkout', () => {
-    expect(content).toContain(
-      'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5',
-    )
+    expect(content).toContain('actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5')
   })
 
   it('has a version comment for the checkout action', () => {
@@ -147,7 +148,9 @@ describe('claude-code-review.yml', () => {
   })
 
   it('configures plugin_marketplaces pointing to the claude-code GitHub repo', () => {
-    expect(content).toContain("plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'")
+    expect(content).toContain(
+      "plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'",
+    )
   })
 
   it('specifies the code-review plugin', () => {
@@ -186,9 +189,9 @@ describe('claude-code-review.yml', () => {
     // Look at the next few lines after job definition for an uncommented `if:`
     const jobBlock = lines.slice(jobLineIdx + 1, jobLineIdx + 5).join('\n')
     // Any `if:` in the job block would not be a comment-only line
-    const hasActiveIf = jobBlock.split('\n').some(
-      (l) => /^\s+if:/.test(l) && !l.trimStart().startsWith('#'),
-    )
+    const hasActiveIf = jobBlock
+      .split('\n')
+      .some((l) => /^\s+if:/.test(l) && !l.trimStart().startsWith('#'))
     expect(hasActiveIf).toBe(false)
   })
 
@@ -282,15 +285,11 @@ describe('claude.yml', () => {
   })
 
   it('job condition checks issues events for @claude in issue body', () => {
-    expect(content).toContain(
-      "contains(github.event.issue.body, '@claude')",
-    )
+    expect(content).toContain("contains(github.event.issue.body, '@claude')")
   })
 
   it('job condition checks issues events for @claude in issue title', () => {
-    expect(content).toContain(
-      "contains(github.event.issue.title, '@claude')",
-    )
+    expect(content).toContain("contains(github.event.issue.title, '@claude')")
   })
 
   it('job condition uses OR to combine all event checks', () => {
@@ -303,7 +302,7 @@ describe('claude.yml', () => {
   it('job condition checks both body and title for issues event', () => {
     // The issues branch must include both body and title checks joined by ||
     const issuesBranch = content.match(
-      /github\.event_name == 'issues'.*?(?=\)[\s\n]*$|\|\|)/s,
+      /github\.event_name == 'issues' && \(contains\(github\.event\.issue\.body, '@claude'\) \|\| contains\(github\.event\.issue\.title, '@claude'\)\)/,
     )
     expect(issuesBranch).not.toBeNull()
     if (issuesBranch) {
@@ -345,9 +344,7 @@ describe('claude.yml', () => {
   })
 
   it('uses a pinned SHA for actions/checkout', () => {
-    expect(content).toContain(
-      'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5',
-    )
+    expect(content).toContain('actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5')
   })
 
   it('has a version comment for the checkout action', () => {
@@ -411,7 +408,10 @@ describe('claude.yml', () => {
     const onBlock: string[] = []
     let inOnBlock = false
     for (const line of lines) {
-      if (/^on:/.test(line)) { inOnBlock = true; continue }
+      if (/^on:/.test(line)) {
+        inOnBlock = true
+        continue
+      }
       if (inOnBlock && /^\S/.test(line) && !/^\s/.test(line)) break
       if (inOnBlock) onBlock.push(line)
     }
