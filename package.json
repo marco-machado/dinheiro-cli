@@ -21,7 +21,7 @@
     "agentskills"
   ],
   "bin": {
-    "dinheiro": "./dist/index.js"
+    "dinheiro": "dist/index.js"
   },
   "engines": {
     "node": ">=24"
