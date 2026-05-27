@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { drizzle, BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import * as schema from './schema/index'
+import { renormalizeNames } from './resolve'
 import { loadConfig } from './config'
 import path from 'path'
 import fs from 'fs'
@@ -37,6 +38,7 @@ export function initDb(dbPath?: string): Db {
   const db = drizzle(sqlite, { schema })
   try {
     migrate(db, { migrationsFolder: path.resolve(__dirname, '../migrations') })
+    renormalizeNames(db)
   } catch (err) {
     sqlite.close()
     throw err
