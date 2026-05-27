@@ -6,6 +6,14 @@ import { AppError } from '../errors'
 import { normalizeName, resolveByNameOrId } from '../resolve'
 import type { Category } from './types'
 
+function translateWriteError(err: unknown): AppError {
+  const e = err as { code?: string; message?: string }
+  if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+    return new AppError('CONFLICT', 'Category name already exists')
+  }
+  return new AppError('DB_ERROR', e.message ?? 'Database operation failed')
+}
+
 export function createCategory(data: { name: string }): Category {
   const db = getDb()
   const now = Date.now()
@@ -16,7 +24,11 @@ export function createCategory(data: { name: string }): Category {
     createdAt: now,
     updatedAt: now,
   }
-  db.insert(categories).values(row).run()
+  try {
+    db.insert(categories).values(row).run()
+  } catch (err) {
+    throw translateWriteError(err)
+  }
   return row
 }
 
@@ -43,10 +55,14 @@ export function listCategories(): Category[] {
 
 export function updateCategory(id: string, name: string): Category {
   const db = getDb()
-  db.update(categories)
-    .set({ name, nameNormalized: normalizeName(name), updatedAt: Date.now() })
-    .where(eq(categories.id, id))
-    .run()
+  try {
+    db.update(categories)
+      .set({ name, nameNormalized: normalizeName(name), updatedAt: Date.now() })
+      .where(eq(categories.id, id))
+      .run()
+  } catch (err) {
+    throw translateWriteError(err)
+  }
   return getCategory(id)!
 }
 

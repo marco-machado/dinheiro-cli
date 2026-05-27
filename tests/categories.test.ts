@@ -47,20 +47,26 @@ describe('categories', () => {
     expect(getCategory(c.id)).toBeUndefined()
   })
 
-  it('rejects a case-variant duplicate name', () => {
+  it('rejects a case-variant duplicate name with CONFLICT', () => {
     createCategory({ name: 'Healthcare' })
-    expect(() => createCategory({ name: 'healthcare' })).toThrow(/UNIQUE constraint failed/)
+    expect(() => createCategory({ name: 'healthcare' })).toThrow(
+      new AppError('CONFLICT', 'Category name already exists'),
+    )
   })
 
-  it('rejects an accent-variant duplicate name', () => {
+  it('rejects an accent-variant duplicate name with CONFLICT', () => {
     createCategory({ name: 'Saúde' })
-    expect(() => createCategory({ name: 'SAUDE' })).toThrow(/UNIQUE constraint failed/)
+    expect(() => createCategory({ name: 'SAUDE' })).toThrow(
+      new AppError('CONFLICT', 'Category name already exists'),
+    )
   })
 
-  it('rejects renaming to a case-variant of an existing name', () => {
+  it('rejects renaming to a case-variant of an existing name with CONFLICT', () => {
     createCategory({ name: 'Food' })
     const other = createCategory({ name: 'Transport' })
-    expect(() => updateCategory(other.id, 'food')).toThrow(/UNIQUE constraint failed/)
+    expect(() => updateCategory(other.id, 'food')).toThrow(
+      new AppError('CONFLICT', 'Category name already exists'),
+    )
   })
 })
 
