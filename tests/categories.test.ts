@@ -91,16 +91,21 @@ describe('resolveCategory', () => {
     expect(() => resolveCategory('Nonexistent')).toThrow(AppError)
     try {
       resolveCategory('Nonexistent')
+      expect.fail('expected resolveCategory to throw')
     } catch (e) {
-      expect((e as AppError).code).toBe('NOT_FOUND')
+      if (!(e instanceof AppError)) throw e
+      expect(e.code).toBe('NOT_FOUND')
     }
   })
 
   it('throws NOT_FOUND for a well-formed ULID that does not exist', () => {
+    expect(() => resolveCategory('01ARZ3NDEKTSV4RRFFQ69G5FAV')).toThrow(AppError)
     try {
       resolveCategory('01ARZ3NDEKTSV4RRFFQ69G5FAV')
+      expect.fail('expected resolveCategory to throw')
     } catch (e) {
-      expect((e as AppError).code).toBe('NOT_FOUND')
+      if (!(e instanceof AppError)) throw e
+      expect(e.code).toBe('NOT_FOUND')
     }
   })
 })

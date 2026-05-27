@@ -110,10 +110,13 @@ describe('resolveAccount', () => {
   })
 
   it('throws NOT_FOUND for an unknown name', () => {
+    expect(() => resolveAccount('Nope')).toThrow(AppError)
     try {
       resolveAccount('Nope')
+      expect.fail('expected resolveAccount to throw')
     } catch (e) {
-      expect((e as AppError).code).toBe('NOT_FOUND')
+      if (!(e instanceof AppError)) throw e
+      expect(e.code).toBe('NOT_FOUND')
     }
   })
 })
