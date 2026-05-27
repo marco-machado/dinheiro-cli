@@ -6,7 +6,9 @@ import {
   listCategories,
   updateCategory,
   deleteCategory,
+  resolveCategory,
 } from '../src/categories/db'
+import { AppError } from '../src/errors'
 
 beforeEach(() => {
   setupTestDb()
@@ -43,5 +45,62 @@ describe('categories', () => {
     const c = createCategory({ name: 'temp' })
     deleteCategory(c.id)
     expect(getCategory(c.id)).toBeUndefined()
+  })
+
+  it('rejects a case-variant duplicate name', () => {
+    createCategory({ name: 'Healthcare' })
+    expect(() => createCategory({ name: 'healthcare' })).toThrow(/UNIQUE constraint failed/)
+  })
+
+  it('rejects an accent-variant duplicate name', () => {
+    createCategory({ name: 'Saúde' })
+    expect(() => createCategory({ name: 'SAUDE' })).toThrow(/UNIQUE constraint failed/)
+  })
+
+  it('rejects renaming to a case-variant of an existing name', () => {
+    createCategory({ name: 'Food' })
+    const other = createCategory({ name: 'Transport' })
+    expect(() => updateCategory(other.id, 'food')).toThrow(/UNIQUE constraint failed/)
+  })
+})
+
+describe('resolveCategory', () => {
+  it('returns the category when given a ULID', () => {
+    const c = createCategory({ name: 'Health' })
+    expect(resolveCategory(c.id).id).toBe(c.id)
+  })
+
+  it('returns the category when given the exact name', () => {
+    const c = createCategory({ name: 'Health' })
+    expect(resolveCategory('Health').id).toBe(c.id)
+  })
+
+  it('matches names case-insensitively', () => {
+    const c = createCategory({ name: 'Healthcare' })
+    expect(resolveCategory('HEALTHCARE').id).toBe(c.id)
+    expect(resolveCategory('healthcare').id).toBe(c.id)
+  })
+
+  it('matches names with accents folded', () => {
+    const c = createCategory({ name: 'Saúde' })
+    expect(resolveCategory('saude').id).toBe(c.id)
+    expect(resolveCategory('SAÚDE').id).toBe(c.id)
+  })
+
+  it('throws NOT_FOUND for an unknown name', () => {
+    expect(() => resolveCategory('Nonexistent')).toThrow(AppError)
+    try {
+      resolveCategory('Nonexistent')
+    } catch (e) {
+      expect((e as AppError).code).toBe('NOT_FOUND')
+    }
+  })
+
+  it('throws NOT_FOUND for a well-formed ULID that does not exist', () => {
+    try {
+      resolveCategory('01ARZ3NDEKTSV4RRFFQ69G5FAV')
+    } catch (e) {
+      expect((e as AppError).code).toBe('NOT_FOUND')
+    }
   })
 })

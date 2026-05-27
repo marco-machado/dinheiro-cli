@@ -3,12 +3,19 @@ import { ulid } from 'ulid'
 import { getDb } from '../db'
 import { categories, transactions } from '../schema/index'
 import { AppError } from '../errors'
+import { normalizeName, resolveByNameOrId } from '../resolve'
 import type { Category } from './types'
 
 export function createCategory(data: { name: string }): Category {
   const db = getDb()
   const now = Date.now()
-  const row = { id: ulid(), name: data.name, createdAt: now, updatedAt: now }
+  const row = {
+    id: ulid(),
+    name: data.name,
+    nameNormalized: normalizeName(data.name),
+    createdAt: now,
+    updatedAt: now,
+  }
   db.insert(categories).values(row).run()
   return row
 }
@@ -18,6 +25,17 @@ export function getCategory(id: string): Category | undefined {
   return db.select().from(categories).where(eq(categories.id, id)).get() as Category | undefined
 }
 
+function getCategoryByNormalizedName(normalized: string): Category | undefined {
+  const db = getDb()
+  return db.select().from(categories).where(eq(categories.nameNormalized, normalized)).get() as
+    | Category
+    | undefined
+}
+
+export function resolveCategory(value: string): Category {
+  return resolveByNameOrId(value, 'category', getCategory, getCategoryByNormalizedName)
+}
+
 export function listCategories(): Category[] {
   const db = getDb()
   return db.select().from(categories).all() as Category[]
@@ -25,7 +43,10 @@ export function listCategories(): Category[] {
 
 export function updateCategory(id: string, name: string): Category {
   const db = getDb()
-  db.update(categories).set({ name, updatedAt: Date.now() }).where(eq(categories.id, id)).run()
+  db.update(categories)
+    .set({ name, nameNormalized: normalizeName(name), updatedAt: Date.now() })
+    .where(eq(categories.id, id))
+    .run()
   return getCategory(id)!
 }
 

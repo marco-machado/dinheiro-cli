@@ -3,8 +3,8 @@ import fs from 'fs'
 import { z } from 'zod'
 import { AppError } from '../errors'
 import { success, isPretty, prettyTable } from '../output'
-import { getAccount } from '../accounts/db'
-import { getCategory } from '../categories/db'
+import { getAccount, resolveAccount } from '../accounts/db'
+import { getCategory, resolveCategory } from '../categories/db'
 import {
   createTransaction,
   getTransaction,
@@ -18,7 +18,7 @@ const occurredAtRe = /^\d{4}-\d{2}-\d{2}$/
 const periodRe = /^\d{4}-\d{2}$/
 
 function validateInput(
-  accountId: string,
+  account: { type: 'checking' | 'credit_card' },
   opts: {
     categoryId?: string
     statementPeriod?: string
@@ -29,9 +29,6 @@ function validateInput(
   if (!occurredAtRe.test(opts.occurredAt)) {
     throw new AppError('VALIDATION_ERROR', 'occurred-at must be YYYY-MM-DD')
   }
-  const account = getAccount(accountId)
-  if (!account) throw new AppError('NOT_FOUND', `account ${accountId} not found`)
-
   if (opts.statementPeriod && !periodRe.test(opts.statementPeriod)) {
     throw new AppError('VALIDATION_ERROR', 'statement-period must be YYYY-MM')
   }
@@ -50,9 +47,6 @@ function validateInput(
   if (!opts.transferId && !opts.categoryId) {
     throw new AppError('VALIDATION_ERROR', 'category is required for non-transfer transactions')
   }
-  if (opts.categoryId && !getCategory(opts.categoryId)) {
-    throw new AppError('NOT_FOUND', `category ${opts.categoryId} not found`)
-  }
 }
 
 const batchRowSchema = z.object({
@@ -69,25 +63,27 @@ export function registerTransactions(program: Command): void {
 
   cmd
     .command('create')
-    .requiredOption('--account <id>')
+    .requiredOption('--account <id-or-name>')
     .requiredOption('--amount <n>', 'amount in cents (signed)', Number)
     .requiredOption('--description <str>')
     .requiredOption('--occurred-at <date>')
-    .option('--category <id>')
+    .option('--category <id-or-name>')
     .option('--statement-period <YYYY-MM>')
     .option('--pretty')
     .action((opts) => {
-      validateInput(opts.account, {
-        categoryId: opts.category,
+      const account = resolveAccount(opts.account)
+      const category = opts.category ? resolveCategory(opts.category) : null
+      validateInput(account, {
+        categoryId: category?.id,
         statementPeriod: opts.statementPeriod,
         occurredAt: opts.occurredAt,
       })
       const t = createTransaction({
-        accountId: opts.account,
+        accountId: account.id,
         amount: opts.amount,
         description: opts.description,
         occurredAt: opts.occurredAt,
-        categoryId: opts.category ?? null,
+        categoryId: category?.id ?? null,
         statementPeriod: opts.statementPeriod ?? null,
       })
       success(t)
@@ -95,8 +91,8 @@ export function registerTransactions(program: Command): void {
 
   cmd
     .command('list')
-    .option('--account <id>')
-    .option('--category <id>')
+    .option('--account <id-or-name>')
+    .option('--category <id-or-name>')
     .option('--from <date>')
     .option('--to <date>')
     .option('--statement-period <YYYY-MM>')
@@ -105,9 +101,11 @@ export function registerTransactions(program: Command): void {
     .option('--limit <n>', 'max rows', Number)
     .option('--pretty')
     .action((opts) => {
+      const accountId = opts.account ? resolveAccount(opts.account).id : undefined
+      const categoryId = opts.category ? resolveCategory(opts.category).id : undefined
       const list = listTransactions({
-        accountId: opts.account,
-        categoryId: opts.category,
+        accountId,
+        categoryId,
         from: opts.from,
         to: opts.to,
         statementPeriod: opts.statementPeriod,
@@ -147,7 +145,7 @@ export function registerTransactions(program: Command): void {
     .argument('<id>')
     .option('--amount <n>', 'amount in cents', Number)
     .option('--description <str>')
-    .option('--category <id>')
+    .option('--category <id-or-name>')
     .option('--occurred-at <date>')
     .option('--statement-period <YYYY-MM>')
     .action((id, opts) => {
@@ -157,13 +155,11 @@ export function registerTransactions(program: Command): void {
       if (opts.statementPeriod && !periodRe.test(opts.statementPeriod)) {
         throw new AppError('VALIDATION_ERROR', 'statement-period must be YYYY-MM')
       }
-      if (opts.category && !getCategory(opts.category)) {
-        throw new AppError('NOT_FOUND', `category ${opts.category} not found`)
-      }
+      const categoryId = opts.category ? resolveCategory(opts.category).id : undefined
       const updated = updateTransaction(id, {
         amount: opts.amount,
         description: opts.description,
-        categoryId: opts.category,
+        categoryId,
         occurredAt: opts.occurredAt,
         statementPeriod: opts.statementPeriod,
       })
