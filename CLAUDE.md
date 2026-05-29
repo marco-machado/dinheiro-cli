@@ -54,7 +54,7 @@ DB-path precedence: `DINHEIRO_DB` > config file `db` field > `$XDG_DATA_HOME/din
 
 ## Git workflow
 
-Work on feature branches and open PRs to `main`. Commit messages are conventional-commit, **subject line only** — no body (`feat:`, `fix:`, `docs:`, `chore:`, etc.).
+Work on feature branches and open PRs to `main`. Commit messages are conventional-commit, **subject line only** — no body (`feat:`, `fix:`, `docs:`, `chore:`, etc.). The only exception is the release-specific footers below (`BREAKING CHANGE:`, `Release-As:`), which release-please reads to drive version bumps.
 
 ## Releases
 
