@@ -30,6 +30,7 @@ Every command emits a JSON envelope: `{ ok: true, data }` on success, `{ ok: fal
 - Amounts are signed integers in **cents** — never floats. Negative = expense, positive = income.
 - Throw `AppError` (`src/errors.ts`) with a typed code: `VALIDATION_ERROR | NOT_FOUND | CONFLICT | DB_ERROR | INTERNAL`. `src/index.ts` catches it and emits the failure envelope.
 - Each feature lives in its own dir as `commands.ts` / `db.ts` / `types.ts` (accounts, categories, transactions, transfers, reports, imports). Follow this layout for new features.
+- **All JSON output keys are camelCase** (`incomeTotal`, `occurredAt`, `byCategory`) — never snake_case. This is the public output contract; agents depend on it. Match it in the TS field names and local variables that build the envelope too, so the return shorthand stays clean.
 - BRL only; multi-currency is not supported.
 
 ## Gotchas

@@ -22,13 +22,13 @@ export function getMonthlyReport(month: string, accountId?: string): MonthlyRepo
   const nonTransfer = rows.filter((r) => !r.transferId)
   const transferRows = rows.filter((r) => !!r.transferId)
 
-  const income_total = nonTransfer.filter((r) => r.amount > 0).reduce((s, r) => s + r.amount, 0)
-  const expense_total = nonTransfer.filter((r) => r.amount < 0).reduce((s, r) => s + r.amount, 0)
-  const transfers_out = transferRows
+  const incomeTotal = nonTransfer.filter((r) => r.amount > 0).reduce((s, r) => s + r.amount, 0)
+  const expenseTotal = nonTransfer.filter((r) => r.amount < 0).reduce((s, r) => s + r.amount, 0)
+  const transfersOut = transferRows
     .filter((r) => r.amount < 0)
     .reduce((s, r) => s + Math.abs(r.amount), 0)
-  const transfers_in = transferRows.filter((r) => r.amount > 0).reduce((s, r) => s + r.amount, 0)
-  const net = income_total + expense_total
+  const transfersIn = transferRows.filter((r) => r.amount > 0).reduce((s, r) => s + r.amount, 0)
+  const net = incomeTotal + expenseTotal
 
   // Category breakdown (expenses only, grouped)
   const catMap = new Map<string, number>()
@@ -41,14 +41,14 @@ export function getMonthlyReport(month: string, accountId?: string): MonthlyRepo
   const allCats = db.select({ id: categories.id, name: categories.name }).from(categories).all()
   for (const c of allCats) catNames.set(c.id, c.name)
 
-  const totalExpense = Math.abs(expense_total) || 1
-  const by_category = Array.from(catMap.entries()).map(([id, total]) => ({
+  const totalExpense = Math.abs(expenseTotal) || 1
+  const byCategory = Array.from(catMap.entries()).map(([id, total]) => ({
     category: catNames.get(id) ?? id,
     total,
     pct: Math.round((Math.abs(total) / totalExpense) * 100 * 10) / 10,
   }))
 
-  return { month, income_total, expense_total, net, transfers_out, transfers_in, by_category }
+  return { month, incomeTotal, expenseTotal, net, transfersOut, transfersIn, byCategory }
 }
 
 export function getStatementReport(accountId: string, period: string): Transaction[] {
