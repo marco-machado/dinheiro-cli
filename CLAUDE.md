@@ -55,4 +55,24 @@ DB-path precedence: `DINHEIRO_DB` > config file `db` field > `$XDG_DATA_HOME/din
 
 ## Git workflow
 
-Work on feature branches and open PRs to `main`. Commit messages are conventional-commit, **subject line only** — no body (`feat:`, `fix:`, `docs:`, `chore:`, etc.).
+Work on feature branches and open PRs to `main`. Commit messages are conventional-commit, **subject line only** — no body (`feat:`, `fix:`, `docs:`, `chore:`, etc.). The only exception is the release-specific footers below (`BREAKING CHANGE:`, `Release-As:`), which release-please reads to drive version bumps.
+
+## Releases
+
+Versioning is automated with [release-please](https://github.com/googleapis/release-please). **Never hand-edit the `version` in `package.json`, write `CHANGELOG.md`, or create git tags / GitHub Releases manually** — release-please owns all of those.
+
+How it works:
+
+- `.github/workflows/release-please.yml` watches `main`. On every push it reads the conventional commits since the last release and maintains a standing **release PR** titled `chore(main): release X.Y.Z`, which updates `package.json`, `.release-please-manifest.json`, and `CHANGELOG.md`.
+- Commit prefixes drive the bump: `fix:` → patch, `feat:` → minor, `feat!:` / `fix!:` / a `BREAKING CHANGE:` footer → major. Other types (`docs:`, `chore:`, `refactor:`, etc.) land in the changelog but don't bump on their own.
+- **Pre-1.0 (we're at `0.x`):** breaking changes bump the *minor*, not the major — `bump-minor-pre-major` is set in `release-please-config.json`. To cut `1.0.0`, merge a commit with a `Release-As: 1.0.0` footer.
+- **Merging the release PR is what ships a release.** On merge, release-please tags the commit and publishes a GitHub Release, which triggers `release.yml` to `npm publish` (with provenance) to npmjs.com and GitHub Packages.
+
+Config lives in `release-please-config.json` (release-type, changelog path, bump rules) and `.release-please-manifest.json` (current version — kept in sync by the tool).
+
+**Setup requirement:** the workflow authenticates as a **GitHub App** (not the default `GITHUB_TOKEN`) — it mints a short-lived installation token per run via `actions/create-github-app-token`. This matters because a release created with `GITHUB_TOKEN` would not trigger `release.yml`, so npm publish would silently never run. Configure once:
+
+- Create a GitHub App (owner: your account) with repository permissions **Contents: read & write** and **Pull requests: read & write**. Generate a private key and install the App on `dinheiro-cli`.
+- Store the App's numeric ID as repo **variable** `RELEASE_APP_ID` and the private key (`.pem` contents) as repo **secret** `RELEASE_APP_PRIVATE_KEY`.
+
+The App token expires in ~1h and is regenerated each run, so there's nothing to rotate.
