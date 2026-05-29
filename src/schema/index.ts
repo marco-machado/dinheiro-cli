@@ -2,7 +2,8 @@ import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
 
 export const accounts = sqliteTable('accounts', {
   id: text('id').primaryKey(),
-  name: text('name').notNull().unique(),
+  name: text('name').notNull(),
+  nameNormalized: text('name_normalized').notNull().unique(),
   type: text('type', { enum: ['checking', 'credit_card'] }).notNull(),
   closeDay: integer('close_day'),
   dueDay: integer('due_day'),
@@ -12,7 +13,8 @@ export const accounts = sqliteTable('accounts', {
 
 export const categories = sqliteTable('categories', {
   id: text('id').primaryKey(),
-  name: text('name').notNull().unique(),
+  name: text('name').notNull(),
+  nameNormalized: text('name_normalized').notNull().unique(),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 })

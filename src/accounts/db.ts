@@ -3,6 +3,7 @@ import { ulid } from 'ulid'
 import { getDb } from '../db'
 import { accounts } from '../schema/index'
 import { AppError } from '../errors'
+import { normalizeName, resolveByNameOrId } from '../resolve'
 import type { Account } from './types'
 
 export function createAccount(data: {
@@ -16,6 +17,7 @@ export function createAccount(data: {
   const row = {
     id: ulid(),
     name: data.name,
+    nameNormalized: normalizeName(data.name),
     type: data.type,
     closeDay: data.closeDay ?? null,
     dueDay: data.dueDay ?? null,
@@ -29,6 +31,17 @@ export function createAccount(data: {
 export function getAccount(id: string): Account | undefined {
   const db = getDb()
   return db.select().from(accounts).where(eq(accounts.id, id)).get() as Account | undefined
+}
+
+function getAccountByNormalizedName(normalized: string): Account | undefined {
+  const db = getDb()
+  return db.select().from(accounts).where(eq(accounts.nameNormalized, normalized)).get() as
+    | Account
+    | undefined
+}
+
+export function resolveAccount(value: string): Account {
+  return resolveByNameOrId(value, 'account', getAccount, getAccountByNormalizedName)
 }
 
 export function listAccounts(): Account[] {
@@ -45,10 +58,9 @@ export function updateAccount(
   },
 ): Account {
   const db = getDb()
-  db.update(accounts)
-    .set({ ...data, updatedAt: Date.now() })
-    .where(eq(accounts.id, id))
-    .run()
+  const patch: Record<string, unknown> = { ...data, updatedAt: Date.now() }
+  if (data.name !== undefined) patch.nameNormalized = normalizeName(data.name)
+  db.update(accounts).set(patch).where(eq(accounts.id, id)).run()
   return getAccount(id)!
 }
 

@@ -6,7 +6,9 @@ import {
   listAccounts,
   updateAccount,
   deleteAccount,
+  resolveAccount,
 } from '../src/accounts/db'
+import { AppError } from '../src/errors'
 
 beforeEach(() => {
   setupTestDb()
@@ -66,5 +68,55 @@ describe('accounts', () => {
     expect(thrown).toBeInstanceOf(Error)
     const err = thrown as Error & { code?: string }
     expect(err.code).toBe('SQLITE_CONSTRAINT_UNIQUE')
+  })
+
+  it('rejects a case-variant duplicate name', () => {
+    createAccount({ name: 'NuConta', type: 'checking' })
+    expect(() => createAccount({ name: 'nuconta', type: 'checking' })).toThrow(
+      /UNIQUE constraint failed/,
+    )
+  })
+
+  it('rejects an accent-variant duplicate name', () => {
+    createAccount({ name: 'Itaú', type: 'checking' })
+    expect(() => createAccount({ name: 'itau', type: 'checking' })).toThrow(
+      /UNIQUE constraint failed/,
+    )
+  })
+
+  it('rejects renaming to a case-variant of an existing name', () => {
+    createAccount({ name: 'First', type: 'checking' })
+    const second = createAccount({ name: 'Second', type: 'checking' })
+    expect(() => updateAccount(second.id, { name: 'FIRST' })).toThrow(/UNIQUE constraint failed/)
+  })
+})
+
+describe('resolveAccount', () => {
+  it('returns the account when given a ULID', () => {
+    const a = createAccount({ name: 'NuConta', type: 'checking' })
+    expect(resolveAccount(a.id).id).toBe(a.id)
+  })
+
+  it('matches names case-insensitively', () => {
+    const a = createAccount({ name: 'NuConta', type: 'checking' })
+    expect(resolveAccount('nuconta').id).toBe(a.id)
+    expect(resolveAccount('NUCONTA').id).toBe(a.id)
+  })
+
+  it('matches names with accents folded', () => {
+    const a = createAccount({ name: 'Itaú', type: 'checking' })
+    expect(resolveAccount('itau').id).toBe(a.id)
+    expect(resolveAccount('ITAÚ').id).toBe(a.id)
+  })
+
+  it('throws NOT_FOUND for an unknown name', () => {
+    expect(() => resolveAccount('Nope')).toThrow(AppError)
+    try {
+      resolveAccount('Nope')
+      expect.fail('expected resolveAccount to throw')
+    } catch (e) {
+      if (!(e instanceof AppError)) throw e
+      expect(e.code).toBe('NOT_FOUND')
+    }
   })
 })

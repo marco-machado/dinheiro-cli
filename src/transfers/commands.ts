@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { AppError } from '../errors'
 import { success, isPretty, prettyTable } from '../output'
-import { getAccount } from '../accounts/db'
+import { resolveAccount } from '../accounts/db'
 import { createTransfer, listTransfers, deleteTransfer } from './db'
 
 export function registerTransfers(program: Command): void {
@@ -9,8 +9,8 @@ export function registerTransfers(program: Command): void {
 
   cmd
     .command('create')
-    .requiredOption('--from <account-id>')
-    .requiredOption('--to <account-id>')
+    .requiredOption('--from <id-or-name>')
+    .requiredOption('--to <id-or-name>')
     .requiredOption('--amount <n>', 'positive amount in cents', Number)
     .requiredOption('--occurred-at <date>')
     .option('--description <str>')
@@ -18,11 +18,11 @@ export function registerTransfers(program: Command): void {
     .action((opts) => {
       if (opts.amount <= 0)
         throw new AppError('VALIDATION_ERROR', 'amount must be a positive integer')
-      if (!getAccount(opts.from)) throw new AppError('NOT_FOUND', `account ${opts.from} not found`)
-      if (!getAccount(opts.to)) throw new AppError('NOT_FOUND', `account ${opts.to} not found`)
+      const from = resolveAccount(opts.from)
+      const to = resolveAccount(opts.to)
       const result = createTransfer({
-        fromAccountId: opts.from,
-        toAccountId: opts.to,
+        fromAccountId: from.id,
+        toAccountId: to.id,
         amount: opts.amount,
         occurredAt: opts.occurredAt,
         description: opts.description,
@@ -32,12 +32,13 @@ export function registerTransfers(program: Command): void {
 
   cmd
     .command('list')
-    .option('--account <id>')
+    .option('--account <id-or-name>')
     .option('--from <date>')
     .option('--to <date>')
     .option('--pretty')
     .action((opts) => {
-      const list = listTransfers({ accountId: opts.account, from: opts.from, to: opts.to })
+      const accountId = opts.account ? resolveAccount(opts.account).id : undefined
+      const list = listTransfers({ accountId, from: opts.from, to: opts.to })
       if (isPretty(opts)) {
         prettyTable(
           ['transfer_id', 'from', 'to', 'amount', 'date'],

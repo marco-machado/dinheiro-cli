@@ -1,7 +1,6 @@
 import { Command } from 'commander'
-import { AppError } from '../errors'
 import { success, isPretty, prettyTable } from '../output'
-import { getAccount } from '../accounts/db'
+import { resolveAccount } from '../accounts/db'
 import { getMonthlyReport, getStatementReport } from './db'
 
 function currentMonth(): string {
@@ -14,13 +13,11 @@ export function registerReports(program: Command): void {
   cmd
     .command('monthly')
     .option('--month <YYYY-MM>')
-    .option('--account <id>')
+    .option('--account <id-or-name>')
     .option('--pretty')
     .action((opts) => {
-      if (opts.account && !getAccount(opts.account)) {
-        throw new AppError('NOT_FOUND', `account ${opts.account} not found`)
-      }
-      const report = getMonthlyReport(opts.month ?? currentMonth(), opts.account)
+      const accountId = opts.account ? resolveAccount(opts.account).id : undefined
+      const report = getMonthlyReport(opts.month ?? currentMonth(), accountId)
       if (isPretty(opts)) {
         console.log(`Month: ${report.month}`)
         console.log(`Income:       ${report.income_total}`)
@@ -42,13 +39,12 @@ export function registerReports(program: Command): void {
 
   cmd
     .command('statement')
-    .requiredOption('--account <id>')
+    .requiredOption('--account <id-or-name>')
     .requiredOption('--period <YYYY-MM>')
     .option('--pretty')
     .action((opts) => {
-      if (!getAccount(opts.account))
-        throw new AppError('NOT_FOUND', `account ${opts.account} not found`)
-      const rows = getStatementReport(opts.account, opts.period)
+      const account = resolveAccount(opts.account)
+      const rows = getStatementReport(account.id, opts.period)
       if (isPretty(opts)) {
         prettyTable(
           ['id', 'amount', 'description', 'occurred_at'],
