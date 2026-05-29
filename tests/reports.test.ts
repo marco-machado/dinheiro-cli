@@ -22,8 +22,8 @@ beforeEach(() => {
 describe('reports monthly', () => {
   it('returns zero totals for empty month', () => {
     const r = getMonthlyReport('2026-05')
-    expect(r.income_total).toBe(0)
-    expect(r.expense_total).toBe(0)
+    expect(r.incomeTotal).toBe(0)
+    expect(r.expenseTotal).toBe(0)
     expect(r.net).toBe(0)
   })
 
@@ -50,8 +50,8 @@ describe('reports monthly', () => {
       categoryId: transportId,
     })
     const r = getMonthlyReport('2026-05')
-    expect(r.income_total).toBe(100000)
-    expect(r.expense_total).toBe(-6200)
+    expect(r.incomeTotal).toBe(100000)
+    expect(r.expenseTotal).toBe(-6200)
     expect(r.net).toBe(93800)
   })
 
@@ -63,10 +63,10 @@ describe('reports monthly', () => {
       occurredAt: '2026-05-10',
     })
     const r = getMonthlyReport('2026-05', accountId)
-    expect(r.income_total).toBe(0)
-    expect(r.expense_total).toBe(0)
-    expect(r.transfers_out).toBe(50000)
-    expect(r.transfers_in).toBe(0)
+    expect(r.incomeTotal).toBe(0)
+    expect(r.expenseTotal).toBe(0)
+    expect(r.transfersOut).toBe(50000)
+    expect(r.transfersIn).toBe(0)
   })
 
   it('filters by account', () => {
@@ -86,7 +86,7 @@ describe('reports monthly', () => {
       categoryId: foodId,
     })
     const r = getMonthlyReport('2026-05', accountId)
-    expect(r.expense_total).toBe(-1000)
+    expect(r.expenseTotal).toBe(-1000)
   })
 
   it('returns category breakdown with percentages', () => {
@@ -105,8 +105,8 @@ describe('reports monthly', () => {
       categoryId: transportId,
     })
     const r = getMonthlyReport('2026-05')
-    expect(r.by_category).toHaveLength(2)
-    const food = r.by_category.find((c) => c.category === 'food')!
+    expect(r.byCategory).toHaveLength(2)
+    const food = r.byCategory.find((c) => c.category === 'food')!
     expect(food.total).toBe(-4000)
     expect(food.pct).toBeCloseTo(80, 0)
   })

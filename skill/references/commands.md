@@ -146,12 +146,12 @@ Defaults to current month. Returns:
 ```json
 {
   "month": "YYYY-MM",
-  "income_total": 0,
-  "expense_total": 0,
+  "incomeTotal": 0,
+  "expenseTotal": 0,
   "net": 0,
-  "transfers_out": 0,
-  "transfers_in": 0,
-  "by_category": [{ "category": "food", "total": -4200, "pct": 75.0 }]
+  "transfersOut": 0,
+  "transfersIn": 0,
+  "byCategory": [{ "category": "food", "total": -4200, "pct": 75.0 }]
 }
 ```
 

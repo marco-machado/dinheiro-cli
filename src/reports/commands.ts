@@ -20,16 +20,16 @@ export function registerReports(program: Command): void {
       const report = getMonthlyReport(opts.month ?? currentMonth(), accountId)
       if (isPretty(opts)) {
         console.log(`Month: ${report.month}`)
-        console.log(`Income:       ${report.income_total}`)
-        console.log(`Expenses:     ${report.expense_total}`)
+        console.log(`Income:       ${report.incomeTotal}`)
+        console.log(`Expenses:     ${report.expenseTotal}`)
         console.log(`Net:          ${report.net}`)
-        console.log(`Transfers out: ${report.transfers_out}`)
-        console.log(`Transfers in:  ${report.transfers_in}`)
-        if (report.by_category.length) {
+        console.log(`Transfers out: ${report.transfersOut}`)
+        console.log(`Transfers in:  ${report.transfersIn}`)
+        if (report.byCategory.length) {
           console.log('')
           prettyTable(
             ['category', 'total', 'pct%'],
-            report.by_category.map((c) => [c.category, c.total, c.pct]),
+            report.byCategory.map((c) => [c.category, c.total, c.pct]),
           )
         }
       } else {
