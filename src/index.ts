@@ -9,6 +9,7 @@ import { registerTransactions } from './transactions/commands'
 import { registerTransfers } from './transfers/commands'
 import { registerReports } from './reports/commands'
 import { registerImports } from './imports/commands'
+import { registerRules } from './rules/commands'
 
 process.on('exit', () => closeDb())
 
@@ -35,6 +36,7 @@ registerTransactions(program)
 registerTransfers(program)
 registerReports(program)
 registerImports(program)
+registerRules(program)
 
 async function main() {
   try {

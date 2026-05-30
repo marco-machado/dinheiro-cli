@@ -5,6 +5,7 @@ import { imports, transactions } from '../schema/index'
 import { AppError } from '../errors'
 import { computeRowHash } from '../transactions/db'
 import { createTransaction } from '../transactions/db'
+import { listRules, matchRule } from '../rules/db'
 import type { Import, ImportRow, ImportResult } from './types'
 
 export function createImport(data: {
@@ -13,11 +14,16 @@ export function createImport(data: {
   filename: string
   rows: ImportRow[]
   dryRun?: boolean
+  applyRules?: boolean
 }): ImportResult {
   const db = getDb()
   const importId = ulid()
   let inserted = 0
   let skipped = 0
+  let categorized = 0
+  // Rules fill in the category for rows that arrive without one. Loaded once;
+  // first-match-wins in declaration order. Disabled via --no-rules.
+  const rules = data.applyRules === false ? [] : listRules()
 
   if (data.dryRun) {
     for (const row of data.rows) {
@@ -27,10 +33,14 @@ export function createImport(data: {
         .from(transactions)
         .where(eq(transactions.rowHash, hash))
         .get()
-      if (exists) skipped++
-      else inserted++
+      if (exists) {
+        skipped++
+        continue
+      }
+      inserted++
+      if (!row.categoryId && resolveRowCategory(row, data.accountId, rules)) categorized++
     }
-    return { importId, inserted, skipped }
+    return { importId, inserted, skipped, categorized }
   }
 
   db.transaction(() => {
@@ -61,12 +71,20 @@ export function createImport(data: {
         skipped++
         continue
       }
+      let categoryId = row.categoryId ?? null
+      if (!categoryId) {
+        const ruleCategoryId = resolveRowCategory(row, data.accountId, rules)
+        if (ruleCategoryId) {
+          categoryId = ruleCategoryId
+          categorized++
+        }
+      }
       createTransaction({
         accountId: data.accountId,
         amount: row.amount,
         description: row.description,
         occurredAt: row.occurredAt,
-        categoryId: row.categoryId ?? null,
+        categoryId,
         statementPeriod: row.statementPeriod ?? null,
         importBatchId: importId,
         rowHash: hash,
@@ -80,7 +98,21 @@ export function createImport(data: {
       .run()
   })
 
-  return { importId, inserted, skipped }
+  return { importId, inserted, skipped, categorized }
+}
+
+// Returns the category a rule assigns to an uncategorized row, or null.
+function resolveRowCategory(
+  row: ImportRow,
+  accountId: string,
+  rules: ReturnType<typeof listRules>,
+): string | null {
+  if (rules.length === 0) return null
+  const rule = matchRule(
+    { description: row.description, amount: row.amount, occurredAt: row.occurredAt, accountId },
+    rules,
+  )
+  return rule?.categoryId ?? null
 }
 
 export function listImports(): Import[] {
