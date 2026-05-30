@@ -1,10 +1,19 @@
 import { Command } from 'commander'
 import { success, isPretty, prettyTable } from '../output'
 import { resolveAccount } from '../accounts/db'
-import { getMonthlyReport, getStatementReport } from './db'
+import { AppError } from '../errors'
+import { getMonthlyReport, getStatementReport, getCategoryReport, getMerchantReport } from './db'
 
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7)
+}
+
+const monthRe = /^\d{4}-\d{2}$/
+
+function validateMonth(value: string | undefined, flag: string): void {
+  if (value !== undefined && !monthRe.test(value)) {
+    throw new AppError('VALIDATION_ERROR', `${flag} must be YYYY-MM`)
+  }
 }
 
 export function registerReports(program: Command): void {
@@ -52,6 +61,70 @@ export function registerReports(program: Command): void {
         )
       } else {
         success(rows)
+      }
+    })
+
+  cmd
+    .command('category')
+    .argument('<name-or-id>', 'category name or id')
+    .option('--from <YYYY-MM>')
+    .option('--to <YYYY-MM>')
+    .option('--pretty')
+    .action((nameOrId, opts) => {
+      validateMonth(opts.from, '--from')
+      validateMonth(opts.to, '--to')
+      const report = getCategoryReport(nameOrId, opts.from, opts.to)
+      if (isPretty(opts)) {
+        console.log(`Category: ${report.category}`)
+        console.log(`Total:    ${report.total} (${report.count} tx)`)
+        if (report.byMonth.length) {
+          console.log('')
+          prettyTable(
+            ['month', 'total', 'count'],
+            report.byMonth.map((m) => [m.month, m.total, m.count]),
+          )
+        }
+        if (report.byMerchant.length) {
+          console.log('')
+          prettyTable(
+            ['merchant', 'total', 'count'],
+            report.byMerchant.map((m) => [m.merchant, m.total, m.count]),
+          )
+        }
+      } else {
+        success(report)
+      }
+    })
+
+  cmd
+    .command('merchant')
+    .requiredOption('--search <str>')
+    .option('--from <YYYY-MM>')
+    .option('--to <YYYY-MM>')
+    .option('--pretty')
+    .action((opts) => {
+      validateMonth(opts.from, '--from')
+      validateMonth(opts.to, '--to')
+      const report = getMerchantReport(opts.search, opts.from, opts.to)
+      if (isPretty(opts)) {
+        console.log(`Search: ${report.search}`)
+        console.log(`Total:  ${report.total} (${report.count} tx)`)
+        if (report.byMonth.length) {
+          console.log('')
+          prettyTable(
+            ['month', 'total', 'count'],
+            report.byMonth.map((m) => [m.month, m.total, m.count]),
+          )
+        }
+        if (report.byMerchant.length) {
+          console.log('')
+          prettyTable(
+            ['merchant', 'total', 'count'],
+            report.byMerchant.map((m) => [m.merchant, m.total, m.count]),
+          )
+        }
+      } else {
+        success(report)
       }
     })
 }
