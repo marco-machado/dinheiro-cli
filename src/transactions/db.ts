@@ -4,7 +4,12 @@ import crypto from 'crypto'
 import { getDb } from '../db'
 import { transactions, categories, accounts } from '../schema/index'
 import { AppError } from '../errors'
+import { normalizeMerchant } from './merchant'
 import type { Transaction, TransactionInput } from './types'
+
+// Sentinel bucket key for rows with a null merchant, surfaced by the aggregate
+// path and accepted by `--merchant` so users can drill into unmatched rows.
+const UNKNOWN_MERCHANT = '(unknown)'
 
 export function computeRowHash(
   accountId: string,
@@ -30,6 +35,7 @@ export function createTransaction(data: TransactionInput): Transaction {
     accountId: data.accountId,
     amount: data.amount,
     description: data.description,
+    merchant: normalizeMerchant(data.description),
     occurredAt: data.occurredAt,
     categoryId: data.categoryId ?? null,
     statementPeriod: data.statementPeriod ?? null,
@@ -57,6 +63,7 @@ export interface ListFilters {
   statementPeriod?: string
   importBatch?: string
   search?: string
+  merchant?: string
   amount?: number
   amountIn?: number[]
   ids?: string[]
@@ -73,6 +80,11 @@ function buildConditions(filters: ListFilters): SQL[] {
     conditions.push(eq(transactions.statementPeriod, filters.statementPeriod))
   if (filters.importBatch) conditions.push(eq(transactions.importBatchId, filters.importBatch))
   if (filters.search) conditions.push(like(transactions.description, `%${filters.search}%`))
+  if (filters.merchant === UNKNOWN_MERCHANT) {
+    conditions.push(sql`${transactions.merchant} is null`)
+  } else if (filters.merchant !== undefined) {
+    conditions.push(eq(transactions.merchant, filters.merchant))
+  }
   if (filters.amount !== undefined) conditions.push(eq(transactions.amount, filters.amount))
   if (filters.amountIn && filters.amountIn.length)
     conditions.push(inArray(transactions.amount, filters.amountIn))
@@ -110,22 +122,6 @@ export interface TransactionStats {
 
 const UNCATEGORIZED = '(uncategorized)'
 
-/**
- * Collapse a raw description into a merchant key: strip installment suffixes
- * (` - Parcela N/M`), trim dedup suffixes (` #2`), and lowercase. Suffixes are
- * stripped repeatedly so they collapse regardless of order or repetition
- * (e.g. `Amazon - Parcela 1/3 #2` and `Amazon #2` both reduce to `amazon`).
- */
-export function normalizeMerchant(description: string): string {
-  let s = description.trim()
-  let prev: string
-  do {
-    prev = s
-    s = s.replace(/\s*-\s*parcela\s+\d+\s*\/\s*\d+\s*$/i, '').replace(/\s+#\d+\s*$/, '')
-  } while (s !== prev)
-  return s.trim().toLowerCase()
-}
-
 export function aggregateTransactions(
   filters: ListFilters,
   dimension: AggregateDimension,
@@ -135,20 +131,25 @@ export function aggregateTransactions(
   const where = conditions.length ? and(...conditions) : undefined
 
   if (dimension === 'merchant') {
+    // Group by the persisted merchant column (derived at insert/update time and
+    // backfilled by migration). Rows whose description normalized to nothing
+    // carry a null merchant and bucket under UNKNOWN_MERCHANT.
     const rows = db
-      .select({ description: transactions.description, amount: transactions.amount })
+      .select({
+        merchant: transactions.merchant,
+        total: sql<number>`sum(${transactions.amount})`,
+        count: sql<number>`count(*)`,
+      })
       .from(transactions)
       .where(where)
+      .groupBy(transactions.merchant)
       .all()
-    const map = new Map<string, AggregateBucket>()
-    for (const r of rows) {
-      const key = normalizeMerchant(r.description)
-      const cur = map.get(key) ?? { key, total: 0, count: 0 }
-      cur.total += r.amount
-      cur.count += 1
-      map.set(key, cur)
-    }
-    return sortBuckets(Array.from(map.values()), 'magnitude')
+    const buckets = rows.map((r) => ({
+      key: r.merchant ?? UNKNOWN_MERCHANT,
+      total: r.total,
+      count: r.count,
+    }))
+    return sortBuckets(buckets, 'magnitude')
   }
 
   if (dimension === 'month') {
@@ -235,8 +236,11 @@ export function updateTransaction(
   if (!existing) throw new AppError('NOT_FOUND', `transaction ${id} not found`)
   if (existing.transferId)
     throw new AppError('CONFLICT', 'cannot update a transfer row directly; use transfers delete')
+  // Re-derive merchant whenever the source description changes.
+  const merchant =
+    data.description !== undefined ? { merchant: normalizeMerchant(data.description) } : {}
   db.update(transactions)
-    .set({ ...data, updatedAt: Date.now() })
+    .set({ ...data, ...merchant, updatedAt: Date.now() })
     .where(eq(transactions.id, id))
     .run()
   return getTransaction(id)!

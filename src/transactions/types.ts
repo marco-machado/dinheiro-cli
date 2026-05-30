@@ -3,6 +3,7 @@ export interface Transaction {
   accountId: string
   amount: number
   description: string
+  merchant: string | null
   occurredAt: string
   categoryId: string | null
   statementPeriod: string | null
