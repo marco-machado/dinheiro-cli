@@ -229,6 +229,11 @@ describe('normalizeMerchant', () => {
   it('collapses installment + dedup variants to one key', () => {
     expect(normalizeMerchant('Uber - Parcela 1/3')).toBe(normalizeMerchant('UBER #2'))
   })
+
+  it('strips both suffixes regardless of order', () => {
+    expect(normalizeMerchant('Amazon - Parcela 1/3 #2')).toBe('amazon')
+    expect(normalizeMerchant('Amazon #2 - Parcela 1/3')).toBe('amazon')
+  })
 })
 
 describe('aggregateTransactions', () => {

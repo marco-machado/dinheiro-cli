@@ -105,14 +105,18 @@ const UNCATEGORIZED = '(uncategorized)'
 
 /**
  * Collapse a raw description into a merchant key: strip installment suffixes
- * (` - Parcela N/M`), trim dedup suffixes (` #2`), and lowercase.
+ * (` - Parcela N/M`), trim dedup suffixes (` #2`), and lowercase. Suffixes are
+ * stripped repeatedly so they collapse regardless of order or repetition
+ * (e.g. `Amazon - Parcela 1/3 #2` and `Amazon #2` both reduce to `amazon`).
  */
 export function normalizeMerchant(description: string): string {
-  return description
-    .replace(/\s*-\s*parcela\s+\d+\s*\/\s*\d+\s*$/i, '')
-    .replace(/\s+#\d+\s*$/, '')
-    .trim()
-    .toLowerCase()
+  let s = description.trim()
+  let prev: string
+  do {
+    prev = s
+    s = s.replace(/\s*-\s*parcela\s+\d+\s*\/\s*\d+\s*$/i, '').replace(/\s+#\d+\s*$/, '')
+  } while (s !== prev)
+  return s.trim().toLowerCase()
 }
 
 export function aggregateTransactions(
