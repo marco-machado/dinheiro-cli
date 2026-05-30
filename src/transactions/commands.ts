@@ -9,10 +9,15 @@ import {
   createTransaction,
   getTransaction,
   listTransactions,
+  aggregateTransactions,
+  statsTransactions,
   updateTransaction,
   deleteTransaction,
   batchCreateTransactions,
+  type AggregateDimension,
 } from './db'
+
+const aggregateDimensions: AggregateDimension[] = ['merchant', 'month', 'category', 'account']
 
 const occurredAtRe = /^\d{4}-\d{2}-\d{2}$/
 const periodRe = /^\d{4}-\d{2}$/
@@ -99,11 +104,13 @@ export function registerTransactions(program: Command): void {
     .option('--import-batch <id>')
     .option('--search <str>')
     .option('--limit <n>', 'max rows', Number)
+    .option('--aggregate-by <dimension>', 'group results: merchant | month | category | account')
+    .option('--stats', 'return { count, sum, min, max, firstDate, lastDate } instead of rows')
     .option('--pretty')
     .action((opts) => {
       const accountId = opts.account ? resolveAccount(opts.account).id : undefined
       const categoryId = opts.category ? resolveCategory(opts.category).id : undefined
-      const list = listTransactions({
+      const filters = {
         accountId,
         categoryId,
         from: opts.from,
@@ -111,8 +118,37 @@ export function registerTransactions(program: Command): void {
         statementPeriod: opts.statementPeriod,
         importBatch: opts.importBatch,
         search: opts.search,
-        limit: opts.limit,
-      })
+      }
+
+      if (opts.aggregateBy && opts.stats) {
+        throw new AppError('VALIDATION_ERROR', 'cannot combine --aggregate-by and --stats')
+      }
+
+      if (opts.stats) {
+        success(statsTransactions(filters))
+        return
+      }
+
+      if (opts.aggregateBy) {
+        if (!aggregateDimensions.includes(opts.aggregateBy)) {
+          throw new AppError(
+            'VALIDATION_ERROR',
+            `aggregate-by must be one of: ${aggregateDimensions.join(', ')}`,
+          )
+        }
+        const buckets = aggregateTransactions(filters, opts.aggregateBy)
+        if (isPretty(opts)) {
+          prettyTable(
+            ['key', 'total', 'count'],
+            buckets.map((b) => [b.key, b.total, b.count]),
+          )
+        } else {
+          success(buckets)
+        }
+        return
+      }
+
+      const list = listTransactions({ ...filters, limit: opts.limit })
       if (isPretty(opts)) {
         prettyTable(
           ['id', 'account', 'amount', 'description', 'occurred_at', 'category'],
