@@ -170,8 +170,8 @@ describe('reports category', () => {
     ])
 
     expect(r.byMerchant).toEqual([
-      { merchant: 'spotify', total: -20000, count: 2 },
-      { merchant: 'netflix', total: -5000, count: 1 },
+      { merchant: 'Spotify', total: -20000, count: 2 },
+      { merchant: 'Netflix', total: -5000, count: 1 },
     ])
   })
 
@@ -234,7 +234,7 @@ describe('reports merchant', () => {
       { month: '2026-01', total: -20000, count: 1 },
     ])
     // installment suffix is stripped so both rows collapse to one merchant
-    expect(r.byMerchant).toEqual([{ merchant: 'apple.com/bill', total: -30000, count: 2 }])
+    expect(r.byMerchant).toEqual([{ merchant: 'Apple.Com/Bill', total: -30000, count: 2 }])
   })
 
   it('returns zero totals when nothing matches', () => {

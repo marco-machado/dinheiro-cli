@@ -40,6 +40,7 @@ export function createTransaction(data: TransactionInput): Transaction {
     categoryId: data.categoryId ?? null,
     statementPeriod: data.statementPeriod ?? null,
     transferId: data.transferId ?? null,
+    reversalOf: data.reversalOf ?? null,
     importBatchId: data.importBatchId ?? null,
     rowHash: data.rowHash ?? null,
     createdAt: now,
@@ -252,7 +253,16 @@ export function deleteTransaction(id: string): void {
   if (!existing) throw new AppError('NOT_FOUND', `transaction ${id} not found`)
   if (existing.transferId)
     throw new AppError('CONFLICT', 'cannot delete a transfer row directly; use transfers delete')
-  db.delete(transactions).where(eq(transactions.id, id)).run()
+  db.transaction(() => {
+    // reversal_of is app-managed (no DB FK), so clear any reversal that points
+    // at this row before deleting it — otherwise it would dangle and skew net
+    // reports and findReversalOriginal bookkeeping.
+    db.update(transactions)
+      .set({ reversalOf: null, updatedAt: Date.now() })
+      .where(eq(transactions.reversalOf, id))
+      .run()
+    db.delete(transactions).where(eq(transactions.id, id)).run()
+  })
 }
 
 export interface CategorizeResult {
@@ -300,6 +310,111 @@ export function categorizeTransactions(
     ids,
     transactions: dryRun ? eligible : listTransactions({ ids }),
   }
+}
+
+/** Nubank marks reversal rows with this description prefix. */
+export const REVERSAL_PREFIX = 'Estorno - '
+
+/**
+ * Find the original transaction a reversal cancels: same account, exactly
+ * opposite amount (a +refund cancels a -purchase), original occurred on or
+ * before the reversal, and not already used as the original of another reversal.
+ * Returns the earliest such candidate, or undefined. The reversal row itself
+ * (its id) is excluded from candidates. Transfer rows are never eligible
+ * originals (mirroring setReversalLink's guard), so reversals never link to a
+ * transfer's transaction row.
+ */
+export function findReversalOriginal(reversal: {
+  id?: string
+  accountId: string
+  amount: number
+  occurredAt: string
+}): Transaction | undefined {
+  const db = getDb()
+  const candidates = db
+    .select()
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.accountId, reversal.accountId),
+        lte(transactions.occurredAt, reversal.occurredAt),
+      ),
+    )
+    .all()
+    .map(toTransaction)
+
+  const linkedOriginals = new Set(
+    db
+      .select({ reversalOf: transactions.reversalOf })
+      .from(transactions)
+      .all()
+      .map((r) => r.reversalOf)
+      .filter((v): v is string => !!v),
+  )
+
+  const matches = candidates
+    .filter((c) => c.id !== reversal.id)
+    .filter((c) => c.amount === -reversal.amount)
+    .filter((c) => !c.transferId)
+    .filter((c) => !c.reversalOf)
+    .filter((c) => !linkedOriginals.has(c.id))
+    .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt) || a.id.localeCompare(b.id))
+
+  return matches[0]
+}
+
+export interface ReversalLinkResult {
+  reversalId: string
+  reversalOf: string | null
+  linked: boolean
+}
+
+/**
+ * Manually link a reversal row to its original (or unlink when originalId is
+ * null). Validates both rows exist, are on the same account, are not transfer
+ * rows, and that the original is not itself a reversal pointing elsewhere.
+ */
+export function setReversalLink(reversalId: string, originalId: string | null): ReversalLinkResult {
+  const db = getDb()
+  const reversal = getTransaction(reversalId)
+  if (!reversal) throw new AppError('NOT_FOUND', `transaction ${reversalId} not found`)
+  if (reversal.transferId)
+    throw new AppError('CONFLICT', 'cannot mark a transfer row as a reversal')
+
+  if (originalId === null) {
+    db.update(transactions)
+      .set({ reversalOf: null, updatedAt: Date.now() })
+      .where(eq(transactions.id, reversalId))
+      .run()
+    return { reversalId, reversalOf: null, linked: false }
+  }
+
+  if (originalId === reversalId)
+    throw new AppError('VALIDATION_ERROR', 'a transaction cannot reverse itself')
+  const original = getTransaction(originalId)
+  if (!original) throw new AppError('NOT_FOUND', `transaction ${originalId} not found`)
+  if (original.transferId)
+    throw new AppError('CONFLICT', 'cannot reverse a transfer row directly; use transfers')
+  if (original.accountId !== reversal.accountId)
+    throw new AppError('VALIDATION_ERROR', 'reversal and original must be on the same account')
+  if (original.reversalOf)
+    throw new AppError('CONFLICT', `transaction ${originalId} is itself a reversal`)
+  // One reversal per original (the import auto-linker enforces this via
+  // linkedOriginals; the manual path must too, or net reports would drop a
+  // single original against multiple reversals).
+  const existingLink = db
+    .select({ id: transactions.id })
+    .from(transactions)
+    .where(eq(transactions.reversalOf, originalId))
+    .get()
+  if (existingLink && existingLink.id !== reversalId)
+    throw new AppError('CONFLICT', `transaction ${originalId} already has a linked reversal`)
+
+  db.update(transactions)
+    .set({ reversalOf: originalId, updatedAt: Date.now() })
+    .where(eq(transactions.id, reversalId))
+    .run()
+  return { reversalId, reversalOf: originalId, linked: true }
 }
 
 export function batchCreateTransactions(rows: TransactionInput[]): {

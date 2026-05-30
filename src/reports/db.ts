@@ -2,9 +2,10 @@ import { and, eq, gte, lte, like, sql, type SQL } from 'drizzle-orm'
 import { getDb } from '../db'
 import { transactions, categories } from '../schema/index'
 import { resolveCategory } from '../categories/db'
-import { normalizeMerchant } from '../transactions/db'
+import { normalizeMerchant } from '../transactions/merchant'
 import type {
   MonthlyReport,
+  ReversalsMode,
   CategoryReport,
   MerchantReport,
   MonthBucket,
@@ -12,20 +13,39 @@ import type {
 } from './types'
 import type { Transaction } from '../transactions/types'
 
-export function getMonthlyReport(month: string, accountId?: string): MonthlyReport {
+export function getMonthlyReport(
+  month: string,
+  accountId?: string,
+  reversals: ReversalsMode = 'net',
+): MonthlyReport {
   const db = getDb()
   const conditions = [like(transactions.occurredAt, `${month}-%`)]
   if (accountId) conditions.push(eq(transactions.accountId, accountId))
 
-  const rows = db
+  let rows = db
     .select({
+      id: transactions.id,
       amount: transactions.amount,
       transferId: transactions.transferId,
       categoryId: transactions.categoryId,
+      reversalOf: transactions.reversalOf,
     })
     .from(transactions)
     .where(and(...conditions))
     .all()
+
+  if (reversals === 'net') {
+    // A reversal cancels its original: drop the reversal row and, when the
+    // original falls in this same window, drop it too.
+    const excluded = new Set<string>()
+    for (const r of rows) {
+      if (r.reversalOf) {
+        excluded.add(r.id)
+        excluded.add(r.reversalOf)
+      }
+    }
+    rows = rows.filter((r) => !excluded.has(r.id))
+  }
 
   const nonTransfer = rows.filter((r) => !r.transferId)
   const transferRows = rows.filter((r) => !!r.transferId)
@@ -56,7 +76,16 @@ export function getMonthlyReport(month: string, accountId?: string): MonthlyRepo
     pct: Math.round((Math.abs(total) / totalExpense) * 100 * 10) / 10,
   }))
 
-  return { month, incomeTotal, expenseTotal, net, transfersOut, transfersIn, byCategory }
+  return {
+    month,
+    reversals,
+    incomeTotal,
+    expenseTotal,
+    net,
+    transfersOut,
+    transfersIn,
+    byCategory,
+  }
 }
 
 // occurredAt is YYYY-MM-DD; --from/--to are YYYY-MM month bounds (inclusive).
@@ -89,7 +118,9 @@ function bucketByMonth(rows: CategoryReportRow[]): MonthBucket[] {
 function bucketByMerchant(rows: CategoryReportRow[]): MerchantBucket[] {
   const map = new Map<string, MerchantBucket>()
   for (const r of rows) {
-    const merchant = normalizeMerchant(r.description)
+    // normalizeMerchant returns null when the description cleans up to nothing;
+    // bucket those under the same sentinel the aggregate path uses.
+    const merchant = normalizeMerchant(r.description) ?? '(unknown)'
     const cur = map.get(merchant) ?? { merchant, total: 0, count: 0 }
     cur.total += r.amount
     cur.count += 1
