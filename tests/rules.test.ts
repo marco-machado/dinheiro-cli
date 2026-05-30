@@ -43,6 +43,11 @@ describe('rules CRUD', () => {
     expect(b.priority).toBeGreaterThan(a.priority)
   })
 
+  it('rejects an empty or whitespace-only match', () => {
+    expect(() => createRule({ match: '   ', categoryId: gaming })).toThrow()
+    expect(listRules()).toHaveLength(0)
+  })
+
   it('deletes a rule', () => {
     const rule = createRule({ match: 'PAGGO', categoryId: gaming })
     deleteRule(rule.id)
@@ -228,7 +233,9 @@ describe('rules apply backfill', () => {
     expect(listTransactions({ from: '2026-09-01', to: '2026-09-30' })[0].categoryId).toBeNull()
   })
 
-  it('requires a scope', () => {
+  it('requires a scope and rejects one-sided date bounds', () => {
     expect(() => applyRules({})).toThrow()
+    expect(() => applyRules({ from: '2026-01' })).toThrow()
+    expect(() => applyRules({ to: '2026-04' })).toThrow()
   })
 })

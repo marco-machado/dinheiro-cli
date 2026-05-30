@@ -30,9 +30,12 @@ function nextPriority(): number {
 export function createRule(data: RuleInput): Rule {
   const db = getDb()
   const now = Date.now()
+  // An empty match would make includes('') a catch-all matching every transaction.
+  const match = data.match.trim()
+  if (!match) throw new AppError('VALIDATION_ERROR', 'match must be a non-empty substring')
   const row = {
     id: ulid(),
-    match: data.match,
+    match,
     amounts: data.amounts && data.amounts.length ? JSON.stringify(data.amounts) : null,
     daysOfMonth:
       data.daysOfMonth && data.daysOfMonth.length ? JSON.stringify(data.daysOfMonth) : null,
@@ -122,8 +125,8 @@ function normalizeBound(value: string | undefined, edge: 'start' | 'end'): strin
 // Re-run the rules over already-imported transactions within a scope and
 // recategorize the ones a rule now matches. Transfer rows are never touched.
 export function applyRules(scope: ApplyScope): ApplyResult {
-  if (!scope.importBatch && !scope.from && !scope.to) {
-    throw new AppError('VALIDATION_ERROR', 'apply requires --import-batch or --from/--to')
+  if (!scope.importBatch && (!scope.from || !scope.to)) {
+    throw new AppError('VALIDATION_ERROR', 'apply requires --import-batch or both --from and --to')
   }
   const list = listRules()
   const txs = listTransactions({

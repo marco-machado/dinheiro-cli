@@ -8,10 +8,12 @@ import type { Rule } from './types'
 
 // Parse a comma-separated list of integers (e.g. "1,2" or "29990,59990").
 function parseIntList(value: string, label: string): number[] {
+  // Strict integer tokens only — reject empty entries ("100," → 0) and
+  // scientific notation ("1e2"), both of which Number() would silently accept.
   return value.split(',').map((part) => {
-    const n = Number(part.trim())
-    if (!Number.isInteger(n)) throw new AppError('VALIDATION_ERROR', `${label} must be integers`)
-    return n
+    const token = part.trim()
+    if (!/^-?\d+$/.test(token)) throw new AppError('VALIDATION_ERROR', `${label} must be integers`)
+    return Number(token)
   })
 }
 
@@ -152,6 +154,10 @@ export function registerRules(program: Command): void {
         throw new AppError('VALIDATION_ERROR', '--amount must be an integer (cents)')
       if (!/^\d{4}-\d{2}-\d{2}$/.test(opts.date))
         throw new AppError('VALIDATION_ERROR', '--date must be YYYY-MM-DD')
+      // Round-trip through Date to reject impossible calendar dates (e.g. 2026-13-40).
+      const parsed = new Date(`${opts.date}T00:00:00.000Z`)
+      if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== opts.date)
+        throw new AppError('VALIDATION_ERROR', '--date must be a real calendar date (YYYY-MM-DD)')
       const accountId = opts.account ? resolveAccount(opts.account).id : ''
 
       const rule = matchRule({
