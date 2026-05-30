@@ -15,6 +15,13 @@
       "when": 1779852718959,
       "tag": "0001_workable_king_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1780103702346,
+      "tag": "0002_rare_human_torch",
+      "breakpoints": true
     }
   ]
 }

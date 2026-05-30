@@ -19,6 +19,26 @@ export const categories = sqliteTable('categories', {
   updatedAt: integer('updated_at').notNull(),
 })
 
+export const rules = sqliteTable(
+  'rules',
+  {
+    id: text('id').primaryKey(),
+    match: text('match').notNull(),
+    amounts: text('amounts'),
+    daysOfMonth: text('days_of_month'),
+    accountId: text('account_id').references(() => accounts.id),
+    categoryId: text('category_id')
+      .notNull()
+      .references(() => categories.id),
+    priority: integer('priority').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => ({
+    priorityIdx: index('rules_priority_idx').on(t.priority),
+  }),
+)
+
 export const imports = sqliteTable('imports', {
   id: text('id').primaryKey(),
   accountId: text('account_id')

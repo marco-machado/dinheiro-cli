@@ -30,6 +30,7 @@ export function registerImports(program: Command): void {
     .requiredOption('--file <path>')
     .option('--format <format>', 'canonical or nubank', 'canonical')
     .option('--dry-run', 'preview without writing')
+    .option('--no-rules', 'skip categorization rules')
     .option('--pretty')
     .action((opts) => {
       if (!getAccount(opts.account))
@@ -76,6 +77,7 @@ export function registerImports(program: Command): void {
         filename: path.basename(opts.file),
         rows,
         dryRun: !!opts.dryRun,
+        applyRules: opts.rules,
       })
       success(result)
     })

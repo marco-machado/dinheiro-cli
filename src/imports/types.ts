@@ -20,4 +20,5 @@ export interface ImportResult {
   importId: string
   inserted: number
   skipped: number
+  categorized: number
 }
