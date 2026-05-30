@@ -35,17 +35,24 @@ export function createImport(data: {
     // Seed the candidate pool with existing, still-unlinked originals for this
     // account, then add each inserted non-reversal row as the loop proceeds.
     const pool = detectReversals ? buildReversalPool(data.accountId) : []
+    // Mirror the live path's idempotent dedup, which skips a row whose hash was
+    // already inserted earlier in the same batch. Without this, a file with a
+    // duplicate row would over-count inserted/reversalsLinked in the preview.
+    const seenHashes = new Set<string>()
     for (const row of data.rows) {
       const hash = computeRowHash(data.accountId, row.occurredAt, row.amount, row.description)
-      const exists = db
-        .select({ id: transactions.id })
-        .from(transactions)
-        .where(eq(transactions.rowHash, hash))
-        .get()
+      const exists =
+        seenHashes.has(hash) ||
+        db
+          .select({ id: transactions.id })
+          .from(transactions)
+          .where(eq(transactions.rowHash, hash))
+          .get()
       if (exists) {
         skipped++
         continue
       }
+      seenHashes.add(hash)
       inserted++
       if (!row.categoryId && resolveRowCategory(row, data.accountId, rules)) categorized++
       if (detectReversals) {
@@ -160,18 +167,19 @@ function buildReversalPool(accountId: string): ReversalCandidate[] {
     .map((r) => ({ amount: r.amount, occurredAt: r.occurredAt }))
 }
 
-// Consume the earliest matching candidate (same absolute amount, original on or
-// before the reversal). Removes it from the pool and returns true when matched.
+// Consume the earliest matching candidate (exactly opposite amount, original on
+// or before the reversal). Removes it from the pool and returns true when
+// matched. Mirrors findReversalOriginal's eligibility so the preview count and
+// the live count agree.
 function consumeReversalCandidate(
   pool: ReversalCandidate[],
   amount: number,
   occurredAt: string,
 ): boolean {
-  const absAmount = Math.abs(amount)
   let best = -1
   for (let i = 0; i < pool.length; i++) {
     const c = pool[i]
-    if (Math.abs(c.amount) !== absAmount || c.occurredAt > occurredAt) continue
+    if (c.amount !== -amount || c.occurredAt > occurredAt) continue
     if (best === -1 || c.occurredAt < pool[best].occurredAt) best = i
   }
   if (best === -1) return false

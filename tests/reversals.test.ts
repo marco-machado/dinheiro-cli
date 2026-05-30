@@ -114,13 +114,28 @@ describe('findReversalOriginal', () => {
   })
 
   it('ignores transfer rows as candidate originals', () => {
-    // Incoming transfer leaves a +200000 row on accountId with the same absolute
-    // amount as the reversal, but transfer rows are never eligible originals.
+    // Outgoing transfer leaves a -200000 row on accountId — the exact opposite of
+    // the +200000 reversal, so only the transfer-row exclusion keeps it out.
     createTransfer({
-      fromAccountId: otherId,
-      toAccountId: accountId,
+      fromAccountId: accountId,
+      toAccountId: otherId,
       amount: 200000,
       occurredAt: '2026-03-01',
+    })
+    expect(
+      findReversalOriginal({ accountId, amount: 200000, occurredAt: '2026-03-05' }),
+    ).toBeUndefined()
+  })
+
+  it('requires the original to be the exact opposite amount, not just same magnitude', () => {
+    // A +200000 income is the same magnitude as the +200000 reversal but the
+    // same sign — it is not something the reversal cancels.
+    createTransaction({
+      accountId,
+      amount: 200000,
+      description: 'Salary',
+      occurredAt: '2026-03-01',
+      categoryId,
     })
     expect(
       findReversalOriginal({ accountId, amount: 200000, occurredAt: '2026-03-05' }),
@@ -196,6 +211,25 @@ describe('setReversalLink', () => {
     })
     const transferRow = listTransactions({ accountId }).find((t) => t.transferId)!
     expect(() => setReversalLink(reversal, transferRow.id)).toThrow(AppError)
+  })
+
+  it('rejects linking a second reversal to an already-linked original', () => {
+    setReversalLink(reversal, original)
+    const secondReversal = createTransaction({
+      accountId,
+      amount: 200000,
+      description: 'Estorno - PIX Pedro',
+      occurredAt: '2026-03-05',
+      categoryId,
+    }).id
+    expect(() => setReversalLink(secondReversal, original)).toThrow(AppError)
+  })
+
+  it('allows re-linking the same reversal to the same original (idempotent)', () => {
+    setReversalLink(reversal, original)
+    const r = setReversalLink(reversal, original)
+    expect(r.linked).toBe(true)
+    expect(r.reversalOf).toBe(original)
   })
 })
 
@@ -308,9 +342,10 @@ describe('import reversal linking (nubank)', () => {
   })
 
   it('dry-run excludes transfer rows from reversal candidates', () => {
+    // Outgoing transfer: -200000 on accountId, the exact opposite of the reversal.
     createTransfer({
-      fromAccountId: otherId,
-      toAccountId: accountId,
+      fromAccountId: accountId,
+      toAccountId: otherId,
       amount: 200000,
       occurredAt: '2026-03-01',
     })
@@ -329,6 +364,29 @@ describe('import reversal linking (nubank)', () => {
       dryRun: true,
     })
     expect(preview.reversalsLinked).toBe(0)
+  })
+
+  it('dry-run dedupes a duplicate row within the same batch like live does', () => {
+    // The same original appears twice in one file; both can be cancelled by at
+    // most one reversal each, but the duplicate must be skipped, not inserted.
+    const rows = [
+      { amount: -200000, description: 'PIX Pedro', occurredAt: '2026-03-01', categoryId },
+      { amount: -200000, description: 'PIX Pedro', occurredAt: '2026-03-01', categoryId },
+      { amount: 200000, description: 'Estorno - PIX Pedro', occurredAt: '2026-03-04', categoryId },
+    ]
+    const preview = createImport({
+      accountId,
+      format: 'nubank',
+      filename: 'nu.csv',
+      rows,
+      dryRun: true,
+    })
+    const live = createImport({ accountId, format: 'nubank', filename: 'nu.csv', rows })
+    expect(preview.inserted).toBe(live.inserted)
+    expect(preview.skipped).toBe(live.skipped)
+    expect(preview.reversalsLinked).toBe(live.reversalsLinked)
+    expect(preview.skipped).toBe(1)
+    expect(preview.reversalsLinked).toBe(1)
   })
 })
 

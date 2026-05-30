@@ -312,12 +312,13 @@ export function categorizeTransactions(
 export const REVERSAL_PREFIX = 'Estorno - '
 
 /**
- * Find the original transaction a reversal cancels: same account, same absolute
- * amount, original occurred on or before the reversal, and not already used as
- * the original of another reversal. Returns the earliest such candidate, or
- * undefined. The reversal row itself (its id) is excluded from candidates.
- * Transfer rows are never eligible originals (mirroring setReversalLink's
- * guard), so reversals never link to a transfer's transaction row.
+ * Find the original transaction a reversal cancels: same account, exactly
+ * opposite amount (a +refund cancels a -purchase), original occurred on or
+ * before the reversal, and not already used as the original of another reversal.
+ * Returns the earliest such candidate, or undefined. The reversal row itself
+ * (its id) is excluded from candidates. Transfer rows are never eligible
+ * originals (mirroring setReversalLink's guard), so reversals never link to a
+ * transfer's transaction row.
  */
 export function findReversalOriginal(reversal: {
   id?: string
@@ -326,7 +327,6 @@ export function findReversalOriginal(reversal: {
   occurredAt: string
 }): Transaction | undefined {
   const db = getDb()
-  const absAmount = Math.abs(reversal.amount)
   const candidates = db
     .select()
     .from(transactions)
@@ -350,7 +350,7 @@ export function findReversalOriginal(reversal: {
 
   const matches = candidates
     .filter((c) => c.id !== reversal.id)
-    .filter((c) => Math.abs(c.amount) === absAmount)
+    .filter((c) => c.amount === -reversal.amount)
     .filter((c) => !c.transferId)
     .filter((c) => !c.reversalOf)
     .filter((c) => !linkedOriginals.has(c.id))
@@ -395,6 +395,16 @@ export function setReversalLink(reversalId: string, originalId: string | null): 
     throw new AppError('VALIDATION_ERROR', 'reversal and original must be on the same account')
   if (original.reversalOf)
     throw new AppError('CONFLICT', `transaction ${originalId} is itself a reversal`)
+  // One reversal per original (the import auto-linker enforces this via
+  // linkedOriginals; the manual path must too, or net reports would drop a
+  // single original against multiple reversals).
+  const existingLink = db
+    .select({ id: transactions.id })
+    .from(transactions)
+    .where(eq(transactions.reversalOf, originalId))
+    .get()
+  if (existingLink && existingLink.id !== reversalId)
+    throw new AppError('CONFLICT', `transaction ${originalId} already has a linked reversal`)
 
   db.update(transactions)
     .set({ reversalOf: originalId, updatedAt: Date.now() })
