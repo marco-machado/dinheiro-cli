@@ -1,6 +1,6 @@
 {
   "name": "@marco-machado/dinheiro-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Personal finance CLI for AI agents",
   "license": "MIT",
   "author": "Marco Machado <marco.machado@gmail.com>",
