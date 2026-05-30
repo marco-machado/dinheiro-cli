@@ -20,6 +20,14 @@ All commands output JSON to stdout by default (exit 0). Errors are JSON to stder
 
 Every command, flag, and default lives in [references/commands.md](references/commands.md).
 
+The shape of the `data` payload for every command — exact field names per command,
+plus the `transactions list` filter flags — lives in
+[references/json-shape.md](references/json-shape.md). Read it before parsing any output:
+keys are camelCase (`occurredAt`, `incomeTotal`), and `--search` / `--from` / `--to` /
+`--limit` / `--category` / `--account` / `--statement-period` / `--import-batch` (and more,
+e.g. `--amount`, `--aggregate-by`, `--stats`) are available on `transactions list` — see
+json-shape.md for the complete table.
+
 ## Output envelopes
 
 Success:
@@ -50,4 +58,5 @@ Before logging transactions, run `dinheiro accounts list`. If `data` is empty, t
 
 ## Workflow recipes
 
-See [workflow recipes](references/workflows.md)
+- [Workflow recipes](references/workflows.md) — setup, logging, importing, paying bills, monthly review.
+- [Curation](references/curation.md) — find miscategorizations after an import, drill into a category, group by payee, bulk-fix, and persist a rule.
