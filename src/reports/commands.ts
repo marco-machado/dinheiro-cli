@@ -8,11 +8,17 @@ function currentMonth(): string {
   return new Date().toISOString().slice(0, 7)
 }
 
-const monthRe = /^\d{4}-\d{2}$/
+const monthRe = /^\d{4}-(0[1-9]|1[0-2])$/
 
 function validateMonth(value: string | undefined, flag: string): void {
   if (value !== undefined && !monthRe.test(value)) {
     throw new AppError('VALIDATION_ERROR', `${flag} must be YYYY-MM`)
+  }
+}
+
+function validateMonthRange(from: string | undefined, to: string | undefined): void {
+  if (from && to && from > to) {
+    throw new AppError('VALIDATION_ERROR', '--from must be <= --to')
   }
 }
 
@@ -73,6 +79,7 @@ export function registerReports(program: Command): void {
     .action((nameOrId, opts) => {
       validateMonth(opts.from, '--from')
       validateMonth(opts.to, '--to')
+      validateMonthRange(opts.from, opts.to)
       const report = getCategoryReport(nameOrId, opts.from, opts.to)
       if (isPretty(opts)) {
         console.log(`Category: ${report.category}`)
@@ -105,6 +112,7 @@ export function registerReports(program: Command): void {
     .action((opts) => {
       validateMonth(opts.from, '--from')
       validateMonth(opts.to, '--to')
+      validateMonthRange(opts.from, opts.to)
       const report = getMerchantReport(opts.search, opts.from, opts.to)
       if (isPretty(opts)) {
         console.log(`Search: ${report.search}`)

@@ -4,6 +4,7 @@ import { createAccount } from '../src/accounts/db'
 import { createCategory } from '../src/categories/db'
 import { createTransaction } from '../src/transactions/db'
 import { createTransfer } from '../src/transfers/db'
+import { AppError } from '../src/errors'
 import {
   getMonthlyReport,
   getStatementReport,
@@ -190,7 +191,13 @@ describe('reports category', () => {
   })
 
   it('throws NOT_FOUND for an unknown category', () => {
-    expect(() => getCategoryReport('nope')).toThrowError(/not found/i)
+    try {
+      getCategoryReport('nope')
+      throw new Error('expected getCategoryReport to throw')
+    } catch (err) {
+      expect(err).toBeInstanceOf(AppError)
+      expect((err as AppError).code).toBe('NOT_FOUND')
+    }
   })
 })
 
