@@ -15,6 +15,7 @@ import {
   deleteTransaction,
   batchCreateTransactions,
   categorizeTransactions,
+  setReversalLink,
   type AggregateDimension,
 } from './db'
 
@@ -313,6 +314,23 @@ export function registerTransactions(program: Command): void {
       } else {
         success(result)
       }
+    })
+
+  cmd
+    .command('reversal')
+    .description('link a reversal row to its original, or unlink it')
+    .argument('<reversal-id>', 'the reversal (estorno) transaction')
+    .option('--of <original-id>', 'the original transaction it reverses')
+    .option('--unlink', 'clear an existing reversal link')
+    .action((reversalId, opts) => {
+      if (opts.unlink && opts.of) {
+        throw new AppError('VALIDATION_ERROR', 'cannot combine --of and --unlink')
+      }
+      if (!opts.unlink && !opts.of) {
+        throw new AppError('VALIDATION_ERROR', '--of <original-id> or --unlink is required')
+      }
+      const result = setReversalLink(reversalId, opts.unlink ? null : opts.of)
+      success(result)
     })
 
   cmd

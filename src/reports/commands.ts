@@ -1,7 +1,9 @@
 import { Command } from 'commander'
+import { AppError } from '../errors'
 import { success, isPretty, prettyTable } from '../output'
 import { resolveAccount } from '../accounts/db'
 import { getMonthlyReport, getStatementReport } from './db'
+import type { ReversalsMode } from './types'
 
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7)
@@ -14,10 +16,15 @@ export function registerReports(program: Command): void {
     .command('monthly')
     .option('--month <YYYY-MM>')
     .option('--account <id-or-name>')
+    .option('--reversals <mode>', 'net (default, both rows excluded) or gross', 'net')
     .option('--pretty')
     .action((opts) => {
       const accountId = opts.account ? resolveAccount(opts.account).id : undefined
-      const report = getMonthlyReport(opts.month ?? currentMonth(), accountId)
+      const reversals = opts.reversals as ReversalsMode
+      if (reversals !== 'net' && reversals !== 'gross') {
+        throw new AppError('VALIDATION_ERROR', 'reversals must be net or gross')
+      }
+      const report = getMonthlyReport(opts.month ?? currentMonth(), accountId, reversals)
       if (isPretty(opts)) {
         console.log(`Month: ${report.month}`)
         console.log(`Income:       ${report.incomeTotal}`)

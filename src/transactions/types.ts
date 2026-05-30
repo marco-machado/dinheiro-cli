@@ -7,6 +7,7 @@ export interface Transaction {
   categoryId: string | null
   statementPeriod: string | null
   transferId: string | null
+  reversalOf: string | null
   importBatchId: string | null
   rowHash: string | null
   createdAt: number
@@ -21,6 +22,7 @@ export interface TransactionInput {
   categoryId?: string | null
   statementPeriod?: string | null
   transferId?: string | null
+  reversalOf?: string | null
   importBatchId?: string | null
   rowHash?: string | null
 }

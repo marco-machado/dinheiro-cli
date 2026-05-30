@@ -1,5 +1,8 @@
+export type ReversalsMode = 'net' | 'gross'
+
 export interface MonthlyReport {
   month: string
+  reversals: ReversalsMode
   incomeTotal: number
   expenseTotal: number
   net: number

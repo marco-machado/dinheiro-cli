@@ -21,4 +21,5 @@ export interface ImportResult {
   inserted: number
   skipped: number
   categorized: number
+  reversalsLinked: number
 }

@@ -3,7 +3,7 @@ import { ulid } from 'ulid'
 import { getDb } from '../db'
 import { imports, transactions } from '../schema/index'
 import { AppError } from '../errors'
-import { computeRowHash } from '../transactions/db'
+import { computeRowHash, REVERSAL_PREFIX, findReversalOriginal } from '../transactions/db'
 import { createTransaction } from '../transactions/db'
 import { listRules, matchRule } from '../rules/db'
 import type { Import, ImportRow, ImportResult } from './types'
@@ -21,6 +21,9 @@ export function createImport(data: {
   let inserted = 0
   let skipped = 0
   let categorized = 0
+  let reversalsLinked = 0
+  // Reversal linking applies to Nubank's `Estorno - ` rows only.
+  const detectReversals = data.format === 'nubank'
   // Rules fill in the category for rows that arrive without one. Loaded once;
   // first-match-wins in declaration order. Disabled via --no-rules.
   const rules = data.applyRules === false ? [] : listRules()
@@ -39,8 +42,19 @@ export function createImport(data: {
       }
       inserted++
       if (!row.categoryId && resolveRowCategory(row, data.accountId, rules)) categorized++
+      if (
+        detectReversals &&
+        row.description.startsWith(REVERSAL_PREFIX) &&
+        findReversalOriginal({
+          accountId: data.accountId,
+          amount: row.amount,
+          occurredAt: row.occurredAt,
+        })
+      ) {
+        reversalsLinked++
+      }
     }
-    return { importId, inserted, skipped, categorized }
+    return { importId, inserted, skipped, categorized, reversalsLinked }
   }
 
   db.transaction(() => {
@@ -79,6 +93,18 @@ export function createImport(data: {
           categorized++
         }
       }
+      let reversalOf: string | null = null
+      if (detectReversals && row.description.startsWith(REVERSAL_PREFIX)) {
+        // Match against rows already in the DB (and earlier rows in this batch,
+        // which are inserted as we go). Each original links to one reversal.
+        reversalOf =
+          findReversalOriginal({
+            accountId: data.accountId,
+            amount: row.amount,
+            occurredAt: row.occurredAt,
+          })?.id ?? null
+        if (reversalOf) reversalsLinked++
+      }
       createTransaction({
         accountId: data.accountId,
         amount: row.amount,
@@ -86,6 +112,7 @@ export function createImport(data: {
         occurredAt: row.occurredAt,
         categoryId,
         statementPeriod: row.statementPeriod ?? null,
+        reversalOf,
         importBatchId: importId,
         rowHash: hash,
       })
@@ -98,7 +125,7 @@ export function createImport(data: {
       .run()
   })
 
-  return { importId, inserted, skipped, categorized }
+  return { importId, inserted, skipped, categorized, reversalsLinked }
 }
 
 // Returns the category a rule assigns to an uncategorized row, or null.
