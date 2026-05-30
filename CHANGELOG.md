@@ -5,7 +5,6 @@
 
 ### Features
 
-* accept category and account by name in CLI flags ([#15](https://github.com/marco-machado/dinheiro-cli/issues/15)) ([5495892](https://github.com/marco-machado/dinheiro-cli/commit/549589221a269e50ab46838e0db043411ee0ec3d))
 * accept category and account by name in CLI flags ([#15](https://github.com/marco-machado/dinheiro-cli/issues/15)) ([#21](https://github.com/marco-machado/dinheiro-cli/issues/21)) ([dd0b9ea](https://github.com/marco-machado/dinheiro-cli/commit/dd0b9ea263e5030059ba8b547eeeffeeccadf8c5))
 * accounts CRUD ([b56c9cd](https://github.com/marco-machado/dinheiro-cli/commit/b56c9cda2e11b31bd92cb9124c0ccd34ad86f293))
 * add closeDb() and leak-safe initDb() ([8b2f5f9](https://github.com/marco-machado/dinheiro-cli/commit/8b2f5f943cc7159438cb477102de771d1d20135f))
@@ -19,7 +18,6 @@
 * foundation layer — db, config, errors, output, index shell ([e7cbcf0](https://github.com/marco-machado/dinheiro-cli/commit/e7cbcf05cc1266a8a9aca09963eb8631e93614b6))
 * imports canonical + list + delete ([a824e9b](https://github.com/marco-machado/dinheiro-cli/commit/a824e9bf2083c705512be18ce627fb1c13f13f70))
 * nubank CSV import parser ([69bb7bb](https://github.com/marco-machado/dinheiro-cli/commit/69bb7bb73916007e0d58e0844f01cd79d4703993))
-* package for distribution to npmjs.com and GitHub Packages ([78927ef](https://github.com/marco-machado/dinheiro-cli/commit/78927efcaa3d89db1409ca3e9ee338b2e33ecc23))
 * package for distribution to npmjs.com and GitHub Packages ([#6](https://github.com/marco-machado/dinheiro-cli/issues/6)) ([168c6af](https://github.com/marco-machado/dinheiro-cli/commit/168c6afa133eaf53a6d6f61ce96aaa0578028215))
 * reports monthly and statement ([f196c92](https://github.com/marco-machado/dinheiro-cli/commit/f196c9284c2e26dc02e2d8764a220085c7fc5d09))
 * **reports:** add category and merchant report verbs ([#36](https://github.com/marco-machado/dinheiro-cli/issues/36)) ([cd6853f](https://github.com/marco-machado/dinheiro-cli/commit/cd6853fac8e3b2b061e18ee2939edab5b6383c57))
@@ -42,5 +40,4 @@
 * map foreign-key constraint errors to VALIDATION_ERROR ([effc636](https://github.com/marco-machado/dinheiro-cli/commit/effc63684b403292eed814df40e40be063a5c525))
 * post-review polish — CSV quoting, FK validation, update path, rollback assertion ([e3c5b15](https://github.com/marco-machado/dinheiro-cli/commit/e3c5b15722f2b0d2c10f4cbbf00f95fedfe9f137))
 * publish skill assets to npm ([6b6030a](https://github.com/marco-machado/dinheiro-cli/commit/6b6030ae4eb001bf5ea6f4db608305ae79d140d6))
-* **reports:** use camelCase JSON keys in monthly report ([45e5e37](https://github.com/marco-machado/dinheiro-cli/commit/45e5e37911194e374b479177563c0e1b6455d513))
 * **reports:** use camelCase JSON keys in monthly report ([#24](https://github.com/marco-machado/dinheiro-cli/issues/24)) ([7495146](https://github.com/marco-machado/dinheiro-cli/commit/74951465dff1db2d96b7363b88e20ca700900e77))
