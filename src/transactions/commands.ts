@@ -12,10 +12,33 @@ import {
   updateTransaction,
   deleteTransaction,
   batchCreateTransactions,
+  categorizeTransactions,
 } from './db'
 
 const occurredAtRe = /^\d{4}-\d{2}-\d{2}$/
 const periodRe = /^\d{4}-\d{2}$/
+
+function validateAmount(amount: number | undefined): void {
+  if (amount !== undefined && !Number.isInteger(amount)) {
+    throw new AppError('VALIDATION_ERROR', 'amount must be an integer (cents)')
+  }
+}
+
+function parseAmountIn(raw: unknown): number[] | undefined {
+  if (raw === undefined) return undefined
+  const list = String(raw)
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length)
+    .map((s) => {
+      const n = Number(s)
+      if (!Number.isInteger(n)) {
+        throw new AppError('VALIDATION_ERROR', `amount-in values must be integers (cents): ${s}`)
+      }
+      return n
+    })
+  return list.length ? list : undefined
+}
 
 function validateInput(
   account: { type: 'checking' | 'credit_card' },
@@ -98,11 +121,15 @@ export function registerTransactions(program: Command): void {
     .option('--statement-period <YYYY-MM>')
     .option('--import-batch <id>')
     .option('--search <str>')
+    .option('--amount <n>', 'exact amount in cents (signed)', Number)
+    .option('--amount-in <n,n,...>', 'comma list of exact amounts in cents')
     .option('--limit <n>', 'max rows', Number)
     .option('--pretty')
     .action((opts) => {
       const accountId = opts.account ? resolveAccount(opts.account).id : undefined
       const categoryId = opts.category ? resolveCategory(opts.category).id : undefined
+      validateAmount(opts.amount)
+      const amountIn = parseAmountIn(opts.amountIn)
       const list = listTransactions({
         accountId,
         categoryId,
@@ -111,6 +138,8 @@ export function registerTransactions(program: Command): void {
         statementPeriod: opts.statementPeriod,
         importBatch: opts.importBatch,
         search: opts.search,
+        amount: opts.amount,
+        amountIn,
         limit: opts.limit,
       })
       if (isPretty(opts)) {
@@ -164,6 +193,90 @@ export function registerTransactions(program: Command): void {
         statementPeriod: opts.statementPeriod,
       })
       success(updated)
+    })
+
+  cmd
+    .command('categorize')
+    .description('bulk-set the category of every transaction matching the filters')
+    .requiredOption('--category <id-or-name>', 'target category to apply')
+    .option('--account <id-or-name>')
+    .option('--from <date>')
+    .option('--to <date>')
+    .option('--statement-period <YYYY-MM>')
+    .option('--import-batch <id>')
+    .option('--search <str>')
+    .option('--amount <n>', 'exact amount in cents (signed)', Number)
+    .option('--amount-in <n,n,...>', 'comma list of exact amounts in cents')
+    .option('--ids <id1,id2,...>', "comma list of ids, or '-' to read ids from stdin")
+    .option('--dry-run', 'preview the matched set and resulting count without mutating')
+    .option('--pretty')
+    .action((opts) => {
+      const category = resolveCategory(opts.category)
+      const accountId = opts.account ? resolveAccount(opts.account).id : undefined
+
+      validateAmount(opts.amount)
+      const amountIn = parseAmountIn(opts.amountIn)
+
+      let ids: string[] | undefined
+      if (opts.ids !== undefined) {
+        const raw = opts.ids === '-' ? fs.readFileSync(0, 'utf8') : String(opts.ids)
+        ids = raw
+          .split(/[\s,]+/)
+          .map((s) => s.trim())
+          .filter((s) => s.length)
+        if (!ids.length) {
+          throw new AppError('VALIDATION_ERROR', 'no ids provided')
+        }
+      }
+
+      const hasSelection =
+        accountId ||
+        opts.from ||
+        opts.to ||
+        opts.statementPeriod ||
+        opts.importBatch ||
+        opts.search ||
+        opts.amount !== undefined ||
+        amountIn ||
+        ids
+      if (!hasSelection) {
+        throw new AppError(
+          'VALIDATION_ERROR',
+          'at least one filter or --ids is required to categorize',
+        )
+      }
+
+      const result = categorizeTransactions(
+        {
+          accountId,
+          from: opts.from,
+          to: opts.to,
+          statementPeriod: opts.statementPeriod,
+          importBatch: opts.importBatch,
+          search: opts.search,
+          amount: opts.amount,
+          amountIn,
+          ids,
+        },
+        category.id,
+        !!opts.dryRun,
+      )
+
+      if (isPretty(opts)) {
+        prettyTable(
+          ['id', 'account', 'amount', 'description', 'occurred_at', 'category'],
+          result.transactions.map((t) => [
+            t.id,
+            t.accountId,
+            t.amount,
+            t.description,
+            t.occurredAt,
+            t.categoryId ?? '',
+          ]),
+        )
+      } else {
+        success(result)
+      }
     })
 
   cmd

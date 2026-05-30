@@ -81,9 +81,11 @@ dinheiro transactions list \
   [--statement-period YYYY-MM] \
   [--import-batch <id>] \
   [--search <str>] \
+  [--amount <int>] \
+  [--amount-in <int,int,...>] \
   [--limit N]
 ```
-`--search` does substring match on description. SQLite's `LIKE` is case-insensitive for ASCII letters only, so `--search cafe` will **not** match descriptions like `Café` (accented chars only match themselves, in the same case). Strip accents from the search term and the description if you need fuzzy matches.
+`--amount` matches an exact signed cent amount; `--amount-in` matches any amount in the comma list. `--search` does substring match on description. SQLite's `LIKE` is case-insensitive for ASCII letters only, so `--search cafe` will **not** match descriptions like `Café` (accented chars only match themselves, in the same case). Strip accents from the search term and the description if you need fuzzy matches.
 
 ### transactions get
 ```
@@ -95,6 +97,17 @@ dinheiro transactions get <id>
 dinheiro transactions update <id> [--amount <int>] [--description <str>] [--category <id>] [--occurred-at YYYY-MM-DD] [--statement-period YYYY-MM]
 ```
 Returns CONFLICT if the transaction is part of a transfer.
+
+### transactions categorize
+```
+dinheiro transactions categorize \
+  --category <id-or-name> \
+  [--account <id>] [--from YYYY-MM-DD] [--to YYYY-MM-DD] \
+  [--statement-period YYYY-MM] [--import-batch <id>] [--search <str>] \
+  [--amount <int>] [--amount-in <int,int,...>] \
+  [--ids <id1,id2,...>] [--dry-run]
+```
+Bulk-sets the category of every transaction matching the filters — collapses an N-call cleanup loop into one. The selection flags reuse `transactions list` semantics verbatim. `--ids` takes a comma list, or `-` to read ids from stdin (one per line). At least one filter or `--ids` is required (refuses to recategorize the whole table). Transfer rows are never mutated; they are excluded from the update and reported via `skipped`. `--dry-run` returns the matched set and resulting count without writing. Output: `{ dryRun, categoryId, matched, skipped, updated, ids, transactions }`.
 
 ### transactions delete
 ```
