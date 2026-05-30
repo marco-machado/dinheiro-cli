@@ -160,7 +160,7 @@ export function categorizeTransactions(
     skipped,
     updated: dryRun ? 0 : ids.length,
     ids,
-    transactions: dryRun ? eligible : ids.map((id) => getTransaction(id)!),
+    transactions: dryRun ? eligible : listTransactions({ ids }),
   }
 }
 

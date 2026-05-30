@@ -18,6 +18,28 @@ import {
 const occurredAtRe = /^\d{4}-\d{2}-\d{2}$/
 const periodRe = /^\d{4}-\d{2}$/
 
+function validateAmount(amount: number | undefined): void {
+  if (amount !== undefined && !Number.isInteger(amount)) {
+    throw new AppError('VALIDATION_ERROR', 'amount must be an integer (cents)')
+  }
+}
+
+function parseAmountIn(raw: unknown): number[] | undefined {
+  if (raw === undefined) return undefined
+  const list = String(raw)
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length)
+    .map((s) => {
+      const n = Number(s)
+      if (!Number.isInteger(n)) {
+        throw new AppError('VALIDATION_ERROR', `amount-in values must be integers (cents): ${s}`)
+      }
+      return n
+    })
+  return list.length ? list : undefined
+}
+
 function validateInput(
   account: { type: 'checking' | 'credit_card' },
   opts: {
@@ -106,13 +128,8 @@ export function registerTransactions(program: Command): void {
     .action((opts) => {
       const accountId = opts.account ? resolveAccount(opts.account).id : undefined
       const categoryId = opts.category ? resolveCategory(opts.category).id : undefined
-      const amountIn = opts.amountIn
-        ? String(opts.amountIn)
-            .split(',')
-            .map((s) => s.trim())
-            .filter((s) => s.length)
-            .map(Number)
-        : undefined
+      validateAmount(opts.amount)
+      const amountIn = parseAmountIn(opts.amountIn)
       const list = listTransactions({
         accountId,
         categoryId,
@@ -197,28 +214,8 @@ export function registerTransactions(program: Command): void {
       const category = resolveCategory(opts.category)
       const accountId = opts.account ? resolveAccount(opts.account).id : undefined
 
-      if (opts.amount !== undefined && !Number.isInteger(opts.amount)) {
-        throw new AppError('VALIDATION_ERROR', 'amount must be an integer (cents)')
-      }
-
-      let amountIn: number[] | undefined
-      if (opts.amountIn !== undefined) {
-        amountIn = String(opts.amountIn)
-          .split(',')
-          .map((s) => s.trim())
-          .filter((s) => s.length)
-          .map((s) => {
-            const n = Number(s)
-            if (!Number.isInteger(n)) {
-              throw new AppError(
-                'VALIDATION_ERROR',
-                `amount-in values must be integers (cents): ${s}`,
-              )
-            }
-            return n
-          })
-        if (!amountIn.length) amountIn = undefined
-      }
+      validateAmount(opts.amount)
+      const amountIn = parseAmountIn(opts.amountIn)
 
       let ids: string[] | undefined
       if (opts.ids !== undefined) {
