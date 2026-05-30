@@ -8,13 +8,16 @@ import {
   listTransactions,
   aggregateTransactions,
   statsTransactions,
-  normalizeMerchant,
   updateTransaction,
   deleteTransaction,
   batchCreateTransactions,
   categorizeTransactions,
   computeRowHash,
 } from '../src/transactions/db'
+import { normalizeMerchant, backfillMerchants } from '../src/transactions/merchant'
+import { getDb } from '../src/db'
+import { transactions } from '../src/schema/index'
+import { eq } from 'drizzle-orm'
 import { AppError } from '../src/errors'
 
 let accountId: string
@@ -396,26 +399,163 @@ describe('transactions', () => {
 
 describe('normalizeMerchant', () => {
   it('strips installment suffixes', () => {
-    expect(normalizeMerchant('Amazon - Parcela 3/12')).toBe('amazon')
-    expect(normalizeMerchant('Loja X - parcela 1 / 6')).toBe('loja x')
+    expect(normalizeMerchant('Amazon - Parcela 3/12')).toBe('Amazon')
+    expect(normalizeMerchant('Loja X - parcela 1 / 6')).toBe('Loja X')
   })
 
   it('strips dedup suffixes', () => {
-    expect(normalizeMerchant('Spotify #2')).toBe('spotify')
-    expect(normalizeMerchant('Spotify #10')).toBe('spotify')
+    expect(normalizeMerchant('Netflix #2')).toBe('Netflix')
+    expect(normalizeMerchant('Netflix #10')).toBe('Netflix')
   })
 
-  it('lowercases and trims', () => {
-    expect(normalizeMerchant('  Netflix  ')).toBe('netflix')
+  it('Title-Cases and trims', () => {
+    expect(normalizeMerchant('  netflix  ')).toBe('Netflix')
+    expect(normalizeMerchant('UBER EATS')).toBe('Uber Eats')
   })
 
-  it('collapses installment + dedup variants to one key', () => {
+  it('collapses installment + dedup variants to one merchant', () => {
     expect(normalizeMerchant('Uber - Parcela 1/3')).toBe(normalizeMerchant('UBER #2'))
   })
 
   it('strips both suffixes regardless of order', () => {
-    expect(normalizeMerchant('Amazon - Parcela 1/3 #2')).toBe('amazon')
-    expect(normalizeMerchant('Amazon #2 - Parcela 1/3')).toBe('amazon')
+    expect(normalizeMerchant('Amazon - Parcela 1/3 #2')).toBe('Amazon')
+    expect(normalizeMerchant('Amazon #2 - Parcela 1/3')).toBe('Amazon')
+  })
+
+  it('strips the Nubank PIX prefix and document tail', () => {
+    expect(
+      normalizeMerchant('Transferência enviada pelo Pix - Fulano de Tal - 123.456.789-09'),
+    ).toBe('Fulano De Tal')
+    expect(
+      normalizeMerchant('Transferência enviada pelo Pix - Padaria Pao 12.345.678/0001-90'),
+    ).toBe('Padaria Pao')
+  })
+
+  it('strips the boleto and estorno prefixes', () => {
+    expect(normalizeMerchant('Pagamento de boleto efetuado - Enel Sp')).toBe('Enel Sp')
+    expect(normalizeMerchant('Estorno - Amazon')).toBe('Amazon')
+  })
+
+  it('strips the débito prefix', () => {
+    expect(normalizeMerchant('Compra no débito - APPLECOMBILL')).toBe('Apple.Com/Bill')
+  })
+
+  it('applies the Apple alias to brand variants', () => {
+    expect(normalizeMerchant('Apple.Com/Bill')).toBe('Apple.Com/Bill')
+    expect(normalizeMerchant('Applecombill')).toBe('Apple.Com/Bill')
+    expect(normalizeMerchant('APPLECOMBILL')).toBe('Apple.Com/Bill')
+    expect(normalizeMerchant('Apple.Com/Bill #3')).toBe('Apple.Com/Bill')
+  })
+
+  it('applies the Spotify alias regardless of separator spacing', () => {
+    expect(normalizeMerchant('Dm*Spotify')).toBe('Spotify')
+    expect(normalizeMerchant('Dm *Spotify')).toBe('Spotify')
+  })
+
+  it('returns null for empty or all-noise descriptions', () => {
+    expect(normalizeMerchant('   ')).toBeNull()
+    expect(normalizeMerchant('Estorno - ')).toBeNull()
+  })
+})
+
+describe('merchant column', () => {
+  it('derives merchant from description on create', () => {
+    const t = createTransaction({
+      accountId,
+      amount: -1000,
+      description: 'APPLECOMBILL #2',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    expect(t.merchant).toBe('Apple.Com/Bill')
+    expect(getTransaction(t.id)?.merchant).toBe('Apple.Com/Bill')
+  })
+
+  it('stores null merchant for an all-noise description', () => {
+    const t = createTransaction({
+      accountId,
+      amount: -1000,
+      description: 'Estorno - ',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    expect(t.merchant).toBeNull()
+  })
+
+  it('re-derives merchant when description is updated', () => {
+    const t = createTransaction({
+      accountId,
+      amount: -1000,
+      description: 'Netflix',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    expect(t.merchant).toBe('Netflix')
+    const updated = updateTransaction(t.id, { description: 'Dm*Spotify' })
+    expect(updated.merchant).toBe('Spotify')
+  })
+
+  it('leaves merchant untouched when description is not updated', () => {
+    const t = createTransaction({
+      accountId,
+      amount: -1000,
+      description: 'Netflix',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    const updated = updateTransaction(t.id, { amount: -2000 })
+    expect(updated.merchant).toBe('Netflix')
+  })
+
+  it('filters by exact merchant match', () => {
+    createTransaction({
+      accountId,
+      amount: -1000,
+      description: 'APPLECOMBILL',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    createTransaction({
+      accountId,
+      amount: -2000,
+      description: 'Netflix',
+      occurredAt: '2026-05-02',
+      categoryId,
+    })
+    const rows = listTransactions({ merchant: 'Apple.Com/Bill' })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].description).toBe('APPLECOMBILL')
+    // Exact match: the raw description substring does not match the merchant.
+    expect(listTransactions({ merchant: 'apple' })).toHaveLength(0)
+  })
+
+  it('backfills merchant for rows whose column is null', () => {
+    const t = createTransaction({
+      accountId,
+      amount: -1000,
+      description: 'APPLECOMBILL',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    // Simulate a pre-migration row: clear the merchant the insert derived.
+    const db = getDb()
+    db.update(transactions).set({ merchant: null }).where(eq(transactions.id, t.id)).run()
+    expect(getTransaction(t.id)?.merchant).toBeNull()
+
+    backfillMerchants(db)
+    expect(getTransaction(t.id)?.merchant).toBe('Apple.Com/Bill')
+  })
+
+  it('buckets null merchants under (unknown) when aggregating', () => {
+    createTransaction({
+      accountId,
+      amount: -1000,
+      description: 'Estorno - ',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    const buckets = aggregateTransactions({}, 'merchant')
+    expect(buckets).toEqual([{ key: '(unknown)', total: -1000, count: 1 }])
   })
 })
 
@@ -443,10 +583,10 @@ describe('aggregateTransactions', () => {
       categoryId,
     })
     const buckets = aggregateTransactions({}, 'merchant')
-    // Sorted by absolute total descending: amazon (3000) before netflix (500).
+    // Sorted by absolute total descending: Amazon (3000) before Netflix (500).
     expect(buckets).toEqual([
-      { key: 'amazon', total: -3000, count: 2 },
-      { key: 'netflix', total: -500, count: 1 },
+      { key: 'Amazon', total: -3000, count: 2 },
+      { key: 'Netflix', total: -500, count: 1 },
     ])
   })
 
