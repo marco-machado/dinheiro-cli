@@ -7,6 +7,10 @@ import { AppError } from '../errors'
 import { normalizeMerchant } from './merchant'
 import type { Transaction, TransactionInput } from './types'
 
+// Sentinel bucket key for rows with a null merchant, surfaced by the aggregate
+// path and accepted by `--merchant` so users can drill into unmatched rows.
+const UNKNOWN_MERCHANT = '(unknown)'
+
 export function computeRowHash(
   accountId: string,
   occurredAt: string,
@@ -76,7 +80,11 @@ function buildConditions(filters: ListFilters): SQL[] {
     conditions.push(eq(transactions.statementPeriod, filters.statementPeriod))
   if (filters.importBatch) conditions.push(eq(transactions.importBatchId, filters.importBatch))
   if (filters.search) conditions.push(like(transactions.description, `%${filters.search}%`))
-  if (filters.merchant !== undefined) conditions.push(eq(transactions.merchant, filters.merchant))
+  if (filters.merchant === UNKNOWN_MERCHANT) {
+    conditions.push(sql`${transactions.merchant} is null`)
+  } else if (filters.merchant !== undefined) {
+    conditions.push(eq(transactions.merchant, filters.merchant))
+  }
   if (filters.amount !== undefined) conditions.push(eq(transactions.amount, filters.amount))
   if (filters.amountIn && filters.amountIn.length)
     conditions.push(inArray(transactions.amount, filters.amountIn))
@@ -113,7 +121,6 @@ export interface TransactionStats {
 }
 
 const UNCATEGORIZED = '(uncategorized)'
-const UNKNOWN_MERCHANT = '(unknown)'
 
 export function aggregateTransactions(
   filters: ListFilters,

@@ -77,8 +77,11 @@ function stripSuffixes(s: string): string {
 
 // Title Case the canonical form: capitalize the first letter of each word while
 // preserving embedded punctuation. Lowercases the rest so SCREAMING text folds.
+// Uses a Unicode-aware boundary (a letter not preceded by a letter/number) so
+// accented words title-case correctly, e.g. "PÃO DE AÇÚCAR" -> "Pão De Açúcar"
+// instead of the broken "\b"-based result "Pão De AçúCar".
 function titleCase(s: string): string {
-  return s.toLowerCase().replace(/\b[\p{L}]/gu, (c) => c.toUpperCase())
+  return s.toLowerCase().replace(/(?<![\p{L}\p{N}])\p{L}/gu, (c) => c.toUpperCase())
 }
 
 /**
@@ -103,9 +106,11 @@ export function normalizeMerchant(description: string): string | null {
  * Populate the `merchant` column for rows that don't yet have it. The migration
  * only adds the nullable column (pure-SQL Title-Casing + alias handling isn't
  * practical in SQLite), so this JS-driven pass runs right after migrate() to
- * derive merchant from description. Idempotent and cheap: it skips any row whose
- * stored merchant already equals the freshly computed value, so re-running the
- * normalizer over the whole table only writes the rows that actually changed.
+ * derive merchant from description. It only fills rows where `merchant IS NULL`;
+ * it does not re-normalize rows that already have a merchant, so a later change
+ * to `normalizeMerchant` will not retroactively rewrite already-populated rows
+ * (re-deriving those would need an explicit re-normalize pass). This keeps a
+ * fully-backfilled table doing no row work on startup.
  */
 export function backfillMerchants(db: BetterSQLite3Database<typeof schema>): void {
   const rows = db

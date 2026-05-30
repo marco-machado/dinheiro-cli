@@ -413,6 +413,11 @@ describe('normalizeMerchant', () => {
     expect(normalizeMerchant('UBER EATS')).toBe('Uber Eats')
   })
 
+  it('Title-Cases accented (Portuguese) words correctly', () => {
+    expect(normalizeMerchant('PÃO DE AÇÚCAR')).toBe('Pão De Açúcar')
+    expect(normalizeMerchant('lojas americanas')).toBe('Lojas Americanas')
+  })
+
   it('collapses installment + dedup variants to one merchant', () => {
     expect(normalizeMerchant('Uber - Parcela 1/3')).toBe(normalizeMerchant('UBER #2'))
   })
@@ -527,6 +532,27 @@ describe('merchant column', () => {
     expect(rows[0].description).toBe('APPLECOMBILL')
     // Exact match: the raw description substring does not match the merchant.
     expect(listTransactions({ merchant: 'apple' })).toHaveLength(0)
+  })
+
+  it('drills into null merchants via --merchant (unknown)', () => {
+    createTransaction({
+      accountId,
+      amount: -1000,
+      description: 'Netflix',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    const blank = createTransaction({
+      accountId,
+      amount: -2000,
+      description: 'Estorno - ',
+      occurredAt: '2026-05-02',
+      categoryId,
+    })
+    expect(blank.merchant).toBeNull()
+    const rows = listTransactions({ merchant: '(unknown)' })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].id).toBe(blank.id)
   })
 
   it('backfills merchant for rows whose column is null', () => {
