@@ -150,7 +150,7 @@ dinheiro <noun> <verb> [args] [flags]
 |---|---|
 | `accounts` | `create`, `list`, `get`, `update`, `delete` |
 | `categories` | `create`, `list`, `update`, `delete` |
-| `transactions` | `create`, `list`, `get`, `update`, `delete`, `batch-create` |
+| `transactions` | `create`, `list`, `get`, `update`, `categorize`, `delete`, `batch-create` |
 | `transfers` | `create`, `list`, `delete` |
 | `imports` | `create` (with `--dry-run`), `list`, `delete` |
 | `reports` | `monthly`, `statement` |

@@ -9,6 +9,7 @@ import {
   updateTransaction,
   deleteTransaction,
   batchCreateTransactions,
+  categorizeTransactions,
   computeRowHash,
 } from '../src/transactions/db'
 import { AppError } from '../src/errors'
@@ -194,6 +195,188 @@ describe('transactions', () => {
     const h2 = computeRowHash('acc1', '2026-05-01', -100, 'lunch')
     expect(h1).toBe(h2)
     expect(h1).toHaveLength(64)
+  })
+
+  it('filters by exact amount', () => {
+    createTransaction({
+      accountId,
+      amount: -100,
+      description: 'a',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    createTransaction({
+      accountId,
+      amount: -200,
+      description: 'b',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    expect(listTransactions({ amount: -100 })).toHaveLength(1)
+  })
+
+  it('filters by amountIn list', () => {
+    createTransaction({
+      accountId,
+      amount: -100,
+      description: 'a',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    createTransaction({
+      accountId,
+      amount: -200,
+      description: 'b',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    createTransaction({
+      accountId,
+      amount: -300,
+      description: 'c',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    expect(listTransactions({ amountIn: [-100, -300] })).toHaveLength(2)
+  })
+
+  it('filters by ids list', () => {
+    const a = createTransaction({
+      accountId,
+      amount: -100,
+      description: 'a',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    createTransaction({
+      accountId,
+      amount: -200,
+      description: 'b',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    expect(listTransactions({ ids: [a.id] })).toHaveLength(1)
+  })
+
+  describe('categorize', () => {
+    let target: string
+    beforeEach(() => {
+      target = createCategory({ name: 'games' }).id
+    })
+
+    it('bulk-updates the matched set and returns counts', () => {
+      createTransaction({
+        accountId,
+        amount: -100,
+        description: 'PAGGO one',
+        occurredAt: '2026-05-01',
+        categoryId,
+      })
+      createTransaction({
+        accountId,
+        amount: -200,
+        description: 'PAGGO two',
+        occurredAt: '2026-05-02',
+        categoryId,
+      })
+      createTransaction({
+        accountId,
+        amount: -300,
+        description: 'Uber',
+        occurredAt: '2026-05-03',
+        categoryId,
+      })
+
+      const res = categorizeTransactions({ search: 'PAGGO' }, target, false)
+      expect(res.matched).toBe(2)
+      expect(res.updated).toBe(2)
+      expect(res.skipped).toBe(0)
+      expect(res.ids).toHaveLength(2)
+      expect(listTransactions({ categoryId: target })).toHaveLength(2)
+    })
+
+    it('dry-run does not mutate', () => {
+      createTransaction({
+        accountId,
+        amount: -100,
+        description: 'PAGGO one',
+        occurredAt: '2026-05-01',
+        categoryId,
+      })
+      const res = categorizeTransactions({ search: 'PAGGO' }, target, true)
+      expect(res.dryRun).toBe(true)
+      expect(res.updated).toBe(0)
+      expect(res.transactions).toHaveLength(1)
+      expect(listTransactions({ categoryId: target })).toHaveLength(0)
+    })
+
+    it('skips transfer rows', () => {
+      createTransaction({
+        accountId,
+        amount: -100,
+        description: 'PAGGO real',
+        occurredAt: '2026-05-01',
+        categoryId,
+      })
+      createTransaction({
+        accountId,
+        amount: -200,
+        description: 'PAGGO transfer',
+        occurredAt: '2026-05-02',
+        transferId: 'xfer1',
+      })
+      const res = categorizeTransactions({ search: 'PAGGO' }, target, false)
+      expect(res.matched).toBe(2)
+      expect(res.updated).toBe(1)
+      expect(res.skipped).toBe(1)
+      expect(listTransactions({ categoryId: target })).toHaveLength(1)
+    })
+
+    it('categorizes by amountIn for in-app-purchase tiers', () => {
+      createTransaction({
+        accountId,
+        amount: -990,
+        description: 'IAP',
+        occurredAt: '2026-05-01',
+        categoryId,
+      })
+      createTransaction({
+        accountId,
+        amount: -1990,
+        description: 'IAP',
+        occurredAt: '2026-05-02',
+        categoryId,
+      })
+      createTransaction({
+        accountId,
+        amount: -5000,
+        description: 'Groceries',
+        occurredAt: '2026-05-03',
+        categoryId,
+      })
+      const res = categorizeTransactions({ amountIn: [-990, -1990] }, target, false)
+      expect(res.updated).toBe(2)
+    })
+
+    it('categorizes by explicit ids', () => {
+      const a = createTransaction({
+        accountId,
+        amount: -100,
+        description: 'a',
+        occurredAt: '2026-05-01',
+        categoryId,
+      })
+      createTransaction({
+        accountId,
+        amount: -200,
+        description: 'b',
+        occurredAt: '2026-05-02',
+        categoryId,
+      })
+      const res = categorizeTransactions({ ids: [a.id] }, target, false)
+      expect(res.updated).toBe(1)
+      expect(getTransaction(a.id)?.categoryId).toBe(target)
+    })
   })
 
   it('deleting a category with associated transactions throws CONFLICT', () => {
