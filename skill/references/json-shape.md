@@ -65,7 +65,7 @@ elements of `reports statement`, and the `transactions` array inside the
 | `statementPeriod`| string \| null | `YYYY-MM`; set for credit-card rows                      |
 | `transferId`     | string \| null | non-null = this row is one leg of a transfer (do not edit/delete directly) |
 | `importBatchId`  | string \| null | non-null = created by an import; use as `--import-batch` |
-| `rowHash`        | string \| null | dedup hash for imported rows                             |
+| `rowHash`        | string \| null | dedup hash; set by imports and by `transactions batch-create` |
 | `createdAt`      | number         | epoch ms                                                |
 | `updatedAt`      | number         | epoch ms                                                |
 
@@ -280,6 +280,8 @@ apply with `categorize`). `--search` is the single most useful flag for any
 | `--pretty`                  | human table instead of JSON (do not parse)                           |
 
 All filters combine with AND. **Case/accent caveat:** SQLite `LIKE` is
-case-insensitive for ASCII letters only — `--search cafe` will **not** match `Café`
-(accented characters only match themselves, same case). Strip accents from both the
-term and the description if you need fuzzy matches.
+case-insensitive for ASCII letters only (this ASCII folding is the default, governed
+by `PRAGMA case_sensitive_like`). Standard SQLite does **no** Unicode case-folding or
+diacritic-insensitive matching, so `--search cafe` will **not** match `Café` — accented
+and non-ASCII characters must match literally, same case. Strip/normalize accents on
+both the term and the description if you need fuzzy matches.

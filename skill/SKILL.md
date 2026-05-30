@@ -21,11 +21,12 @@ All commands output JSON to stdout by default (exit 0). Errors are JSON to stder
 Every command, flag, and default lives in [references/commands.md](references/commands.md).
 
 The shape of the `data` payload for every command — exact field names per command,
-plus the full `transactions list` filter flag set — lives in
+plus the `transactions list` filter flags — lives in
 [references/json-shape.md](references/json-shape.md). Read it before parsing any output:
 keys are camelCase (`occurredAt`, `incomeTotal`), and `--search` / `--from` / `--to` /
-`--limit` / `--category` / `--account` / `--statement-period` / `--import-batch` are all
-available on `transactions list`.
+`--limit` / `--category` / `--account` / `--statement-period` / `--import-batch` (and more,
+e.g. `--amount`, `--aggregate-by`, `--stats`) are available on `transactions list` — see
+json-shape.md for the complete table.
 
 ## Output envelopes
 
