@@ -104,7 +104,7 @@ Suggest only — never merge. Choose between squash and merge:
 
 - **Single logical change, or history padded with fixup / "address review"
   commits** → **squash**. One clean, typed commit; tidy changelog.
-- **Multiple meaningful, independently-revertable commits worth keeping** →
+- **Multiple meaningful, independently-revertible commits worth keeping** →
   **merge commit**. Preserves granularity and atomic whole-PR revert.
 
 Output the pick and a one-line why.
