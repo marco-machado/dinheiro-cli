@@ -8,9 +8,10 @@ import {
   listTransactions,
   findReversalOriginal,
   setReversalLink,
+  deleteTransaction,
 } from '../src/transactions/db'
 import { createTransfer } from '../src/transfers/db'
-import { createImport } from '../src/imports/db'
+import { createImport, deleteImport } from '../src/imports/db'
 import { getMonthlyReport } from '../src/reports/db'
 import { AppError } from '../src/errors'
 
@@ -110,6 +111,20 @@ describe('findReversalOriginal', () => {
       occurredAt: '2026-03-05',
     })
     expect(match?.id).toBe(first.id)
+  })
+
+  it('ignores transfer rows as candidate originals', () => {
+    // Incoming transfer leaves a +200000 row on accountId with the same absolute
+    // amount as the reversal, but transfer rows are never eligible originals.
+    createTransfer({
+      fromAccountId: otherId,
+      toAccountId: accountId,
+      amount: 200000,
+      occurredAt: '2026-03-01',
+    })
+    expect(
+      findReversalOriginal({ accountId, amount: 200000, occurredAt: '2026-03-05' }),
+    ).toBeUndefined()
   })
 })
 
@@ -244,6 +259,131 @@ describe('import reversal linking (nubank)', () => {
     ]
     const result = createImport({ accountId, format: 'nubank', filename: 'nu.csv', rows })
     expect(result.reversalsLinked).toBe(2)
+  })
+
+  it('dry-run reversalsLinked matches the live import count', () => {
+    // Two originals, two reversals, all in one batch — exercises the in-memory
+    // candidate pool (originals consumed one-per-reversal as the loop proceeds).
+    const rows = [
+      { amount: -200000, description: 'PIX Pedro', occurredAt: '2026-03-01', categoryId },
+      { amount: -200000, description: 'PIX Pedro', occurredAt: '2026-03-02', categoryId },
+      { amount: 200000, description: 'Estorno - PIX Pedro', occurredAt: '2026-03-04', categoryId },
+      { amount: 200000, description: 'Estorno - PIX Pedro', occurredAt: '2026-03-05', categoryId },
+    ]
+    const preview = createImport({
+      accountId,
+      format: 'nubank',
+      filename: 'nu.csv',
+      rows,
+      dryRun: true,
+    })
+    // Dry run writes nothing, so the live import sees the same starting state.
+    const live = createImport({ accountId, format: 'nubank', filename: 'nu.csv', rows })
+    expect(preview.reversalsLinked).toBe(live.reversalsLinked)
+    expect(preview.reversalsLinked).toBe(2)
+  })
+
+  it('dry-run counts a reversal against an original already in the DB', () => {
+    createImport({
+      accountId,
+      format: 'nubank',
+      filename: 'orig.csv',
+      rows: [{ amount: -200000, description: 'PIX Pedro', occurredAt: '2026-03-01', categoryId }],
+    })
+    const preview = createImport({
+      accountId,
+      format: 'nubank',
+      filename: 'rev.csv',
+      rows: [
+        {
+          amount: 200000,
+          description: 'Estorno - PIX Pedro',
+          occurredAt: '2026-03-04',
+          categoryId,
+        },
+      ],
+      dryRun: true,
+    })
+    expect(preview.reversalsLinked).toBe(1)
+  })
+
+  it('dry-run excludes transfer rows from reversal candidates', () => {
+    createTransfer({
+      fromAccountId: otherId,
+      toAccountId: accountId,
+      amount: 200000,
+      occurredAt: '2026-03-01',
+    })
+    const preview = createImport({
+      accountId,
+      format: 'nubank',
+      filename: 'rev.csv',
+      rows: [
+        {
+          amount: 200000,
+          description: 'Estorno - PIX Pedro',
+          occurredAt: '2026-03-04',
+          categoryId,
+        },
+      ],
+      dryRun: true,
+    })
+    expect(preview.reversalsLinked).toBe(0)
+  })
+})
+
+describe('reversal link integrity on delete', () => {
+  it('deleteTransaction on an original unlinks its reversal so net counts it', () => {
+    const original = createTransaction({
+      accountId,
+      amount: -200000,
+      description: 'PIX Pedro',
+      occurredAt: '2026-03-01',
+      categoryId,
+    })
+    const reversal = createTransaction({
+      accountId,
+      amount: 200000,
+      description: 'Estorno - PIX Pedro',
+      occurredAt: '2026-03-04',
+      categoryId,
+      reversalOf: original.id,
+    })
+    deleteTransaction(original.id)
+    // The dangling reversal_of is cleared, so the orphaned reversal counts on
+    // its own instead of being silently dropped by net mode.
+    expect(getTransaction(reversal.id)!.reversalOf).toBeNull()
+    const net = getMonthlyReport('2026-03', accountId, 'net')
+    expect(net.incomeTotal).toBe(200000)
+  })
+
+  it('deleteImport unlinks reversals in other batches pointing at the deleted batch', () => {
+    const batchA = createImport({
+      accountId,
+      format: 'nubank',
+      filename: 'a.csv',
+      rows: [{ amount: -200000, description: 'PIX Pedro', occurredAt: '2026-03-01', categoryId }],
+    })
+    const batchB = createImport({
+      accountId,
+      format: 'nubank',
+      filename: 'b.csv',
+      rows: [
+        {
+          amount: 200000,
+          description: 'Estorno - PIX Pedro',
+          occurredAt: '2026-03-04',
+          categoryId,
+        },
+      ],
+    })
+    expect(batchB.reversalsLinked).toBe(1)
+    const reversal = listTransactions({ search: 'Estorno' })[0]
+    expect(reversal.reversalOf).not.toBeNull()
+
+    deleteImport(batchA.importId)
+    // The reversal survives (different batch) but its dangling link is cleared.
+    expect(getTransaction(reversal.id)!.reversalOf).toBeNull()
   })
 })
 

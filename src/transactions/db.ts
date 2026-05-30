@@ -249,7 +249,16 @@ export function deleteTransaction(id: string): void {
   if (!existing) throw new AppError('NOT_FOUND', `transaction ${id} not found`)
   if (existing.transferId)
     throw new AppError('CONFLICT', 'cannot delete a transfer row directly; use transfers delete')
-  db.delete(transactions).where(eq(transactions.id, id)).run()
+  db.transaction(() => {
+    // reversal_of is app-managed (no DB FK), so clear any reversal that points
+    // at this row before deleting it — otherwise it would dangle and skew net
+    // reports and findReversalOriginal bookkeeping.
+    db.update(transactions)
+      .set({ reversalOf: null, updatedAt: Date.now() })
+      .where(eq(transactions.reversalOf, id))
+      .run()
+    db.delete(transactions).where(eq(transactions.id, id)).run()
+  })
 }
 
 export interface CategorizeResult {
@@ -307,6 +316,8 @@ export const REVERSAL_PREFIX = 'Estorno - '
  * amount, original occurred on or before the reversal, and not already used as
  * the original of another reversal. Returns the earliest such candidate, or
  * undefined. The reversal row itself (its id) is excluded from candidates.
+ * Transfer rows are never eligible originals (mirroring setReversalLink's
+ * guard), so reversals never link to a transfer's transaction row.
  */
 export function findReversalOriginal(reversal: {
   id?: string
@@ -340,6 +351,7 @@ export function findReversalOriginal(reversal: {
   const matches = candidates
     .filter((c) => c.id !== reversal.id)
     .filter((c) => Math.abs(c.amount) === absAmount)
+    .filter((c) => !c.transferId)
     .filter((c) => !c.reversalOf)
     .filter((c) => !linkedOriginals.has(c.id))
     .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt) || a.id.localeCompare(b.id))

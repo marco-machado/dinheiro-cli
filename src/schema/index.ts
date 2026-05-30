@@ -64,6 +64,11 @@ export const transactions = sqliteTable(
     categoryId: text('category_id').references(() => categories.id),
     statementPeriod: text('statement_period'),
     transferId: text('transfer_id'),
+    // Soft self-reference to the original transaction a reversal cancels.
+    // Intentionally NOT a DB foreign key (like transfer_id): SQLite can't add a
+    // self-FK without a table rebuild, and the link is app-managed. Integrity is
+    // enforced in code — deleteTransaction/deleteImport null out referencing
+    // reversals before removing an original, so no dangling ids remain.
     reversalOf: text('reversal_of'),
     importBatchId: text('import_batch_id').references(() => imports.id),
     rowHash: text('row_hash').unique(),

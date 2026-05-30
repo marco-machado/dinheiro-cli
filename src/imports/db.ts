@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, inArray } from 'drizzle-orm'
 import { ulid } from 'ulid'
 import { getDb } from '../db'
 import { imports, transactions } from '../schema/index'
@@ -29,6 +29,12 @@ export function createImport(data: {
   const rules = data.applyRules === false ? [] : listRules()
 
   if (data.dryRun) {
+    // Mirror the live path's reversal linking so the preview count is accurate:
+    // originals are consumed one-per-reversal, and a reversal can match an
+    // earlier original from the same batch (live inserts originals as it goes).
+    // Seed the candidate pool with existing, still-unlinked originals for this
+    // account, then add each inserted non-reversal row as the loop proceeds.
+    const pool = detectReversals ? buildReversalPool(data.accountId) : []
     for (const row of data.rows) {
       const hash = computeRowHash(data.accountId, row.occurredAt, row.amount, row.description)
       const exists = db
@@ -42,16 +48,13 @@ export function createImport(data: {
       }
       inserted++
       if (!row.categoryId && resolveRowCategory(row, data.accountId, rules)) categorized++
-      if (
-        detectReversals &&
-        row.description.startsWith(REVERSAL_PREFIX) &&
-        findReversalOriginal({
-          accountId: data.accountId,
-          amount: row.amount,
-          occurredAt: row.occurredAt,
-        })
-      ) {
-        reversalsLinked++
+      if (detectReversals) {
+        if (row.description.startsWith(REVERSAL_PREFIX)) {
+          if (consumeReversalCandidate(pool, row.amount, row.occurredAt)) reversalsLinked++
+        } else {
+          // A would-be-inserted original becomes a candidate for later reversals.
+          pool.push({ amount: row.amount, occurredAt: row.occurredAt })
+        }
       }
     }
     return { importId, inserted, skipped, categorized, reversalsLinked }
@@ -128,6 +131,54 @@ export function createImport(data: {
   return { importId, inserted, skipped, categorized, reversalsLinked }
 }
 
+// A candidate original a reversal could cancel, kept in memory during a dry run.
+interface ReversalCandidate {
+  amount: number
+  occurredAt: string
+}
+
+// Existing, still-unlinked originals for an account — the dry-run starting pool.
+// Mirrors findReversalOriginal's eligibility: a candidate is a row that is not a
+// transfer row, not itself a reversal, and not already used as some reversal's
+// original.
+function buildReversalPool(accountId: string): ReversalCandidate[] {
+  const db = getDb()
+  const rows = db
+    .select({
+      id: transactions.id,
+      amount: transactions.amount,
+      occurredAt: transactions.occurredAt,
+      transferId: transactions.transferId,
+      reversalOf: transactions.reversalOf,
+    })
+    .from(transactions)
+    .where(eq(transactions.accountId, accountId))
+    .all()
+  const linkedOriginals = new Set(rows.map((r) => r.reversalOf).filter((v): v is string => !!v))
+  return rows
+    .filter((r) => !r.transferId && !r.reversalOf && !linkedOriginals.has(r.id))
+    .map((r) => ({ amount: r.amount, occurredAt: r.occurredAt }))
+}
+
+// Consume the earliest matching candidate (same absolute amount, original on or
+// before the reversal). Removes it from the pool and returns true when matched.
+function consumeReversalCandidate(
+  pool: ReversalCandidate[],
+  amount: number,
+  occurredAt: string,
+): boolean {
+  const absAmount = Math.abs(amount)
+  let best = -1
+  for (let i = 0; i < pool.length; i++) {
+    const c = pool[i]
+    if (Math.abs(c.amount) !== absAmount || c.occurredAt > occurredAt) continue
+    if (best === -1 || c.occurredAt < pool[best].occurredAt) best = i
+  }
+  if (best === -1) return false
+  pool.splice(best, 1)
+  return true
+}
+
 // Returns the category a rule assigns to an uncategorized row, or null.
 function resolveRowCategory(
   row: ImportRow,
@@ -152,6 +203,16 @@ export function deleteImport(id: string): void {
   const existing = db.select({ id: imports.id }).from(imports).where(eq(imports.id, id)).get()
   if (!existing) throw new AppError('NOT_FOUND', `import ${id} not found`)
   db.transaction(() => {
+    // Clear reversals (possibly from other batches) that point at originals in
+    // this batch, so deleting the batch doesn't leave dangling reversal_of refs.
+    const batchRowIds = db
+      .select({ id: transactions.id })
+      .from(transactions)
+      .where(eq(transactions.importBatchId, id))
+    db.update(transactions)
+      .set({ reversalOf: null, updatedAt: Date.now() })
+      .where(inArray(transactions.reversalOf, batchRowIds))
+      .run()
     db.delete(transactions).where(eq(transactions.importBatchId, id)).run()
     db.delete(imports).where(eq(imports.id, id)).run()
   })
