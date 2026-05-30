@@ -6,6 +6,9 @@ import {
   createTransaction,
   getTransaction,
   listTransactions,
+  aggregateTransactions,
+  statsTransactions,
+  normalizeMerchant,
   updateTransaction,
   deleteTransaction,
   batchCreateTransactions,
@@ -388,5 +391,213 @@ describe('transactions', () => {
       categoryId,
     })
     expect(() => deleteCategory(categoryId)).toThrow(AppError)
+  })
+})
+
+describe('normalizeMerchant', () => {
+  it('strips installment suffixes', () => {
+    expect(normalizeMerchant('Amazon - Parcela 3/12')).toBe('amazon')
+    expect(normalizeMerchant('Loja X - parcela 1 / 6')).toBe('loja x')
+  })
+
+  it('strips dedup suffixes', () => {
+    expect(normalizeMerchant('Spotify #2')).toBe('spotify')
+    expect(normalizeMerchant('Spotify #10')).toBe('spotify')
+  })
+
+  it('lowercases and trims', () => {
+    expect(normalizeMerchant('  Netflix  ')).toBe('netflix')
+  })
+
+  it('collapses installment + dedup variants to one key', () => {
+    expect(normalizeMerchant('Uber - Parcela 1/3')).toBe(normalizeMerchant('UBER #2'))
+  })
+
+  it('strips both suffixes regardless of order', () => {
+    expect(normalizeMerchant('Amazon - Parcela 1/3 #2')).toBe('amazon')
+    expect(normalizeMerchant('Amazon #2 - Parcela 1/3')).toBe('amazon')
+  })
+})
+
+describe('aggregateTransactions', () => {
+  it('groups by merchant, normalizing descriptions', () => {
+    createTransaction({
+      accountId,
+      amount: -1000,
+      description: 'Amazon - Parcela 1/3',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    createTransaction({
+      accountId,
+      amount: -2000,
+      description: 'Amazon #2',
+      occurredAt: '2026-05-02',
+      categoryId,
+    })
+    createTransaction({
+      accountId,
+      amount: -500,
+      description: 'Netflix',
+      occurredAt: '2026-05-03',
+      categoryId,
+    })
+    const buckets = aggregateTransactions({}, 'merchant')
+    // Sorted by absolute total descending: amazon (3000) before netflix (500).
+    expect(buckets).toEqual([
+      { key: 'amazon', total: -3000, count: 2 },
+      { key: 'netflix', total: -500, count: 1 },
+    ])
+  })
+
+  it('groups by month (chronological)', () => {
+    createTransaction({
+      accountId,
+      amount: -100,
+      description: 'a',
+      occurredAt: '2026-04-15',
+      categoryId,
+    })
+    createTransaction({
+      accountId,
+      amount: -200,
+      description: 'b',
+      occurredAt: '2026-05-10',
+      categoryId,
+    })
+    createTransaction({
+      accountId,
+      amount: -300,
+      description: 'c',
+      occurredAt: '2026-05-20',
+      categoryId,
+    })
+    expect(aggregateTransactions({}, 'month')).toEqual([
+      { key: '2026-04', total: -100, count: 1 },
+      { key: '2026-05', total: -500, count: 2 },
+    ])
+  })
+
+  it('groups by category, resolving names and uncategorized', () => {
+    const other = createCategory({ name: 'travel' }).id
+    createTransaction({
+      accountId,
+      amount: -100,
+      description: 'a',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    createTransaction({
+      accountId,
+      amount: -900,
+      description: 'b',
+      occurredAt: '2026-05-02',
+      categoryId: other,
+    })
+    createTransaction({
+      accountId,
+      amount: -50,
+      description: 'uncat',
+      occurredAt: '2026-05-03',
+      categoryId: null,
+    })
+    const buckets = aggregateTransactions({}, 'category')
+    expect(buckets).toEqual([
+      { key: 'travel', total: -900, count: 1 },
+      { key: 'food', total: -100, count: 1 },
+      { key: '(uncategorized)', total: -50, count: 1 },
+    ])
+  })
+
+  it('groups by account, resolving names', () => {
+    const other = createAccount({ name: 'Wallet', type: 'checking' }).id
+    createTransaction({
+      accountId,
+      amount: -100,
+      description: 'a',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    createTransaction({
+      accountId: other,
+      amount: -700,
+      description: 'b',
+      occurredAt: '2026-05-02',
+      categoryId,
+    })
+    const buckets = aggregateTransactions({}, 'account')
+    expect(buckets).toEqual([
+      { key: 'Wallet', total: -700, count: 1 },
+      { key: 'NuConta', total: -100, count: 1 },
+    ])
+  })
+
+  it('honors filters', () => {
+    createTransaction({
+      accountId,
+      amount: -100,
+      description: 'a',
+      occurredAt: '2026-04-30',
+      categoryId,
+    })
+    createTransaction({
+      accountId,
+      amount: -200,
+      description: 'b',
+      occurredAt: '2026-05-01',
+      categoryId,
+    })
+    expect(aggregateTransactions({ from: '2026-05-01' }, 'month')).toEqual([
+      { key: '2026-05', total: -200, count: 1 },
+    ])
+  })
+
+  it('returns an empty array when nothing matches', () => {
+    expect(aggregateTransactions({ search: 'nope' }, 'merchant')).toEqual([])
+  })
+})
+
+describe('statsTransactions', () => {
+  it('computes count, sum, min, max and date range', () => {
+    createTransaction({
+      accountId,
+      amount: -1000,
+      description: 'a',
+      occurredAt: '2026-05-10',
+      categoryId,
+    })
+    createTransaction({
+      accountId,
+      amount: 3000,
+      description: 'b',
+      occurredAt: '2026-03-01',
+      categoryId,
+    })
+    createTransaction({
+      accountId,
+      amount: -500,
+      description: 'c',
+      occurredAt: '2026-07-20',
+      categoryId,
+    })
+    expect(statsTransactions({})).toEqual({
+      count: 3,
+      sum: 1500,
+      min: -1000,
+      max: 3000,
+      firstDate: '2026-03-01',
+      lastDate: '2026-07-20',
+    })
+  })
+
+  it('returns zero/null shape for an empty result set', () => {
+    expect(statsTransactions({ search: 'nope' })).toEqual({
+      count: 0,
+      sum: 0,
+      min: null,
+      max: null,
+      firstDate: null,
+      lastDate: null,
+    })
   })
 })
