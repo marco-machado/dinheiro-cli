@@ -126,7 +126,8 @@ export function registerTransactions(program: Command): void {
     .option('--to <date>')
     .option('--statement-period <YYYY-MM>')
     .option('--import-batch <id>')
-    .option('--search <str>')
+    .option('--search <str>', 'substring match on raw description')
+    .option('--merchant <str>', 'exact match on the normalized merchant')
     .option('--amount <n>', 'exact amount in cents (signed)', Number)
     .option('--amount-in <n,n,...>', 'comma list of exact amounts in cents')
     .option('--limit <n>', 'max rows', Number)
@@ -146,6 +147,7 @@ export function registerTransactions(program: Command): void {
         statementPeriod: opts.statementPeriod,
         importBatch: opts.importBatch,
         search: opts.search,
+        merchant: opts.merchant,
         amount: opts.amount,
         amountIn,
       }

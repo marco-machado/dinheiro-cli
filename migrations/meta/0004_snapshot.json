@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5f7023bd-5279-4f4f-8d5a-4638f0ac59b7",
-  "prevId": "0e600189-788e-479c-b0e7-faa1f83b563d",
+  "id": "4237f11a-bd73-4829-a38f-50deded65fd9",
+  "prevId": "5f7023bd-5279-4f4f-8d5a-4638f0ac59b7",
   "tables": {
     "accounts": {
       "name": "accounts",
@@ -378,6 +378,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "reversal_of": {
+          "name": "reversal_of",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "import_batch_id": {
           "name": "import_batch_id",
           "type": "text",
@@ -454,6 +461,13 @@
           "name": "tx_transfer_id_idx",
           "columns": [
             "transfer_id"
+          ],
+          "isUnique": false
+        },
+        "tx_reversal_of_idx": {
+          "name": "tx_reversal_of_idx",
+          "columns": [
+            "reversal_of"
           ],
           "isUnique": false
         },

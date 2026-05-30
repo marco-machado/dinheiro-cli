@@ -1,5 +1,9 @@
 # Command Reference
 
+> Flags and defaults live here. For the exact shape of the `data` payload each command
+> returns (field names, types, camelCase keys), see
+> [json-shape.md](json-shape.md).
+
 ## accounts
 
 ### accounts create
@@ -187,7 +191,7 @@ dinheiro imports create \
   [--dry-run]
 ```
 `--format` defaults to `canonical`. `--dry-run` validates without writing.
-Returns: `{ importId, inserted, skipped }`
+Returns: `{ importId, inserted, skipped, categorized }` (`categorized` = rows auto-categorized by a matching rule at import time).
 
 Canonical format: JSON array with `{ amount, description, occurredAt, categoryId?, statementPeriod? }`.
 Nubank format: CSV with `Data,Categoria,Título,Valor` header.
